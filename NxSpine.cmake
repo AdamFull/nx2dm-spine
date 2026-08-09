@@ -43,12 +43,14 @@ function(_nx_spine_resolve root out_var)
 endfunction()
 
 function(nx_add_spine)
-  # A checkout already sitting in third_party/spine-cpp wins over the fetch
-  # without anyone having to say so. It is gitignored, so putting one there is
-  # how you avoid a half-gigabyte download per build directory; deleting it
-  # goes back to fetching.
+  # A checkout already sitting in this module's own third_party wins over the
+  # fetch without anyone having to say so. It is gitignored, so putting one
+  # there is how you avoid a half-gigabyte download per build directory;
+  # deleting it goes back to fetching. Under the module rather than the
+  # repository's third_party, because the dependency belongs to the module -
+  # the tree it came out of should not carry it.
   if(NOT NX_SPINE2D_SOURCE_DIR)
-    _nx_spine_resolve("${CMAKE_SOURCE_DIR}/third_party/spine-cpp" _local)
+    _nx_spine_resolve("${CMAKE_CURRENT_LIST_DIR}/third_party/spine-cpp" _local)
     if(_local)
       set(NX_SPINE2D_SOURCE_DIR "${_local}")
     endif()
