@@ -432,3 +432,34 @@ TEST_CASE("spine: many skeletons pose the same way across a pool") {
   for (usize i = 0; i < many.vertices.size(); ++i)
     CHECK(many.vertices[i].position == one.vertices[i].position);
 }
+
+TEST_CASE("spine: a skeleton stands up from its node, not down") {
+  const Loaded loaded;
+  REQUIRE(loaded.ok());
+
+  scene::registry_t registry = bare_registry();
+  spine2d::SpineSystem system;
+  place(registry, system, loaded.asset, {0.f, 0.f});
+  system.update(registry, 0.1f);
+
+  r2d::MeshChannel channel;
+  REQUIRE(system.emit(registry, channel, {}) > 0u);
+
+  // spineboy's origin is between his feet and he is 686 units tall, so almost
+  // all of him is above the node. spine-cpp defaults Bone::yDown to true,
+  // which negates the skeleton's y scale and hands back exactly this shape
+  // mirrored - and every other case here compares one pose against another,
+  // so all of them pass just as happily with the character on his head.
+  glm::vec2 lo(1e30f);
+  glm::vec2 hi(-1e30f);
+  for (const r2d::MeshVertex &v : channel.vertices) {
+    lo = glm::min(lo, v.position);
+    hi = glm::max(hi, v.position);
+  }
+  CHECK(hi.y > 500.f);
+  CHECK(lo.y > -100.f);
+  // Wider than nothing but far taller than wide, which is what says the box is
+  // a person rather than an axis mix-up.
+  CHECK(hi.x - lo.x > 200.f);
+  CHECK(hi.y - lo.y > hi.x - lo.x);
+}

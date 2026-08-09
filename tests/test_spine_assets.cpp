@@ -6,7 +6,7 @@
  * which is the point: a loader that half worked would produce plausible ones,
  * and these are the ones the editor shows.
  *
- * Built only with NX_WITH_SPINE2D, like everything else Spine.
+ * Built with the module, like everything else here.
  */
 
 #include "framework/nxtest.h"

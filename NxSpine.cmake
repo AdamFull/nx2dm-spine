@@ -5,7 +5,7 @@
 # recursive clone pulling them is right. This one is different on two counts.
 # It is optional, and its licence says "each user of the Products must obtain
 # their own Spine Editor license" - so a submodule entry, which lands in every
-# recursive clone whether or not NX_WITH_SPINE2D is on, would put a Spine
+# recursive clone whether or not NX_MODULE_SPINE is on, would put a Spine
 # obligation in front of people who will never enable it. Fetching only when
 # asked is what ties the dependency to the switch.
 #
