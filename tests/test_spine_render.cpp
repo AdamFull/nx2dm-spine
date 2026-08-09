@@ -14,6 +14,8 @@
 
 #include "framework/nxtest.h"
 
+#include "fixture.h"
+
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/strings/format.h"
 #include "core/foundation/vfs/vfs.h"
@@ -29,14 +31,14 @@
 
 namespace {
 
+using namespace nxm::spine_test;
+
 namespace spine2d = nxe::spine2d;
 namespace scene = nxe::scene;
 namespace r2d = nxe::r2d;
 namespace rhi = nxe::rhi;
 
 constexpr u32 TARGET = 256;
-constexpr nx::string_view SKELETON = "/spine/spineboy/export/spineboy-pro.skel";
-constexpr nx::string_view ATLAS = "/spine/spineboy/export/spineboy-pma.atlas";
 
 /// What the mesh pass pushes, spelled here rather than included: nx_engine owns
 /// MeshPushBlock and this target links no engine.
@@ -111,6 +113,7 @@ void dump(const u8 *const pixels, const u32 pass) {
 } // namespace
 
 TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
+  NX_REQUIRE_FIXTURE();
   TestDevice fixture;
   if (!fixture.ready)
     SKIP("no usable RHI device");
@@ -121,14 +124,14 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
     SKIP("shaders are not built in this configuration");
 
   nx::vfs::initialize();
-  nx::vfs::Device *const host =
-      nx::vfs::make_host_device(nx::fs::path_view(NX_TEST_ASSET_DIR));
+  nx::vfs::Device *const host = nx::vfs::make_host_device(
+      nx::fs::path_view(nxm::spine_test::fixture_dir()));
   REQUIRE(host != nullptr);
   nx::vfs::mount("/", host);
 
   spine2d::SkeletonAsset asset;
   nx::string error;
-  REQUIRE(spine2d::load_skeleton(SKELETON, ATLAS, {}, asset, error));
+  REQUIRE(spine2d::load_skeleton(SKELETON, ATLAS_PMA, {}, asset, error));
 
   scene::registry_t registry;
   registry.register_component<scene::WorldTransform2D>(

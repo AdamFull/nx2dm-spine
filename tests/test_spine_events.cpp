@@ -9,6 +9,8 @@
 
 #include "framework/nxtest.h"
 
+#include "fixture.h"
+
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/vfs/vfs.h"
 #include "spine/spine_assets.h"
@@ -21,25 +23,25 @@
 
 namespace {
 
+using namespace nxm::spine_test;
+
 namespace spine2d = nxe::spine2d;
 namespace scene = nxe::scene;
 namespace r2d = nxe::r2d;
 
-constexpr nx::string_view SKELETON = "/spine/spineboy/export/spineboy-pro.skel";
-constexpr nx::string_view ATLAS = "/spine/spineboy/export/spineboy-pma.atlas";
-
 struct Loaded {
   Loaded() {
     nx::vfs::initialize();
-    m_device = nx::vfs::make_host_device(nx::fs::path_view(NX_TEST_ASSET_DIR));
+    m_device = nx::vfs::make_host_device(
+        nx::fs::path_view(nxm::spine_test::fixture_dir()));
     if (m_device == nullptr)
       return;
     nx::vfs::mount("/", m_device);
     nx::string error;
     m_ok = spine2d::load_skeleton(
-        SKELETON, ATLAS, spine2d::TextureResolver([](nx::string_view, bool) {
-          return pack_texture(1, 0);
-        }),
+        SKELETON, ATLAS_PMA,
+        spine2d::TextureResolver(
+            [](nx::string_view, bool) { return pack_texture(1, 0); }),
         asset, error);
   }
   ~Loaded() {
@@ -86,6 +88,7 @@ scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
 
 TEST_CASE("spine: a keyed event arrives with its name and its time") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -113,6 +116,7 @@ TEST_CASE("spine: a keyed event arrives with its name and its time") {
 
 TEST_CASE("spine: a track reports starting, completing and ending") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -136,6 +140,7 @@ TEST_CASE("spine: a track reports starting, completing and ending") {
 
 TEST_CASE("spine: events are drained, not accumulated") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -154,6 +159,7 @@ TEST_CASE("spine: events are drained, not accumulated") {
 
 TEST_CASE("spine: every skeleton's events name the skeleton that fired them") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   nx::thread_pool pool({.thread_count = 4});
@@ -188,6 +194,7 @@ TEST_CASE("spine: a clipping attachment removes what it covers") {
   // Declared before the skeleton so it outlives the slot pointing at it.
   ::spine::ClippingAttachment clip(::spine::String("test-clip"));
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();

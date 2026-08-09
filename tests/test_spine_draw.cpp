@@ -10,6 +10,8 @@
 
 #include "framework/nxtest.h"
 
+#include "fixture.h"
+
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/vfs/vfs.h"
 #include "core/rendering/render2d/scene_renderer.h"
@@ -22,22 +24,19 @@
 
 namespace {
 
+using namespace nxm::spine_test;
+
 namespace spine2d = nxe::spine2d;
 namespace scene = nxe::scene;
 namespace r2d = nxe::r2d;
-
-constexpr nx::string_view SKELETON = "/spine/spineboy/export/spineboy-pro.skel";
-constexpr nx::string_view ATLAS_PMA =
-    "/spine/spineboy/export/spineboy-pma.atlas";
-constexpr nx::string_view ATLAS_STRAIGHT =
-    "/spine/spineboy/export/spineboy.atlas";
 
 /// The asset tree mounted, with one skeleton loaded out of it.
 struct Loaded {
   explicit Loaded(const nx::string_view atlas = ATLAS_PMA,
                   const u32 texture = nx::cast<u32>(pack_texture(7, 1))) {
     nx::vfs::initialize();
-    m_device = nx::vfs::make_host_device(nx::fs::path_view(NX_TEST_ASSET_DIR));
+    m_device = nx::vfs::make_host_device(
+        nx::fs::path_view(nxm::spine_test::fixture_dir()));
     if (m_device == nullptr)
       return;
     nx::vfs::mount("/", m_device);
@@ -97,6 +96,7 @@ scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
 
 TEST_CASE("spine: a posed skeleton becomes mesh draws") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -127,6 +127,7 @@ TEST_CASE("spine: a posed skeleton becomes mesh draws") {
 
 TEST_CASE("spine: every draw of one skeleton carries the same key") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -169,6 +170,7 @@ TEST_CASE("spine: every draw of one skeleton carries the same key") {
 
 TEST_CASE("spine: two skeletons sort by layer, then by depth") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -193,6 +195,7 @@ TEST_CASE("spine: two skeletons sort by layer, then by depth") {
 
 TEST_CASE("spine: the node's transform is what places the skeleton") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -227,6 +230,7 @@ TEST_CASE("spine: the node's transform is what places the skeleton") {
 
 TEST_CASE("spine: an animation actually moves the pose") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -254,6 +258,7 @@ TEST_CASE("spine: an animation actually moves the pose") {
 
 TEST_CASE("spine: time_scale is what a frozen character is frozen by") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -281,6 +286,7 @@ TEST_CASE("spine: a premultiplied atlas picks a different blend and colour") {
 
   {
     const Loaded loaded(ATLAS_PMA);
+    NX_REQUIRE_FIXTURE();
     REQUIRE(loaded.ok());
     REQUIRE(loaded.asset.premultiplied());
     const scene::Entity e = place(registry, system, loaded.asset, {0.f, 0.f});
@@ -292,6 +298,7 @@ TEST_CASE("spine: a premultiplied atlas picks a different blend and colour") {
 
   {
     const Loaded loaded(ATLAS_STRAIGHT);
+    NX_REQUIRE_FIXTURE();
     REQUIRE(loaded.ok());
     REQUIRE_FALSE(loaded.asset.premultiplied());
     const scene::Entity e = place(registry, system, loaded.asset, {0.f, 0.f});
@@ -313,9 +320,10 @@ TEST_CASE("spine: a premultiplied atlas picks a different blend and colour") {
 }
 
 TEST_CASE("spine: a page nobody could back draws untextured") {
+  NX_REQUIRE_FIXTURE();
   nx::vfs::initialize();
-  nx::vfs::Device *const device =
-      nx::vfs::make_host_device(nx::fs::path_view(NX_TEST_ASSET_DIR));
+  nx::vfs::Device *const device = nx::vfs::make_host_device(
+      nx::fs::path_view(nxm::spine_test::fixture_dir()));
   REQUIRE(device != nullptr);
   nx::vfs::mount("/", device);
 
@@ -345,6 +353,7 @@ TEST_CASE("spine: a page nobody could back draws untextured") {
 
 TEST_CASE("spine: an invisible character emits nothing") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -364,6 +373,7 @@ TEST_CASE("spine: an invisible character emits nothing") {
 
 TEST_CASE("spine: a component that arrived without a pose gets one") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -384,6 +394,7 @@ TEST_CASE("spine: a component that arrived without a pose gets one") {
 
 TEST_CASE("spine: an animation the skeleton does not have is refused") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();
@@ -403,6 +414,7 @@ TEST_CASE("spine: an animation the skeleton does not have is refused") {
 
 TEST_CASE("spine: many skeletons pose the same way across a pool") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   constexpr usize COUNT = spine2d::SpineSystem::PARALLEL_THRESHOLD * 4;
@@ -435,6 +447,7 @@ TEST_CASE("spine: many skeletons pose the same way across a pool") {
 
 TEST_CASE("spine: a skeleton stands up from its node, not down") {
   const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(loaded.ok());
 
   scene::registry_t registry = bare_registry();

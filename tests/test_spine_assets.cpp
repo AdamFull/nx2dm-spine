@@ -11,6 +11,8 @@
 
 #include "framework/nxtest.h"
 
+#include "fixture.h"
+
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/vfs/vfs.h"
 #include "core/rendering/render2d/render_interop.h"
@@ -19,6 +21,8 @@
 
 namespace {
 
+using namespace nxm::spine_test;
+
 namespace spine2d = nxe::spine2d;
 
 /// The asset tree, mounted rather than copied - the same arrangement the scene
@@ -26,7 +30,8 @@ namespace spine2d = nxe::spine2d;
 struct Mounted {
   Mounted() {
     nx::vfs::initialize();
-    m_device = nx::vfs::make_host_device(nx::fs::path_view(NX_TEST_ASSET_DIR));
+    m_device = nx::vfs::make_host_device(
+        nx::fs::path_view(nxm::spine_test::fixture_dir()));
     if (m_device != nullptr)
       m_mount = nx::vfs::mount("/", m_device);
   }
@@ -44,8 +49,6 @@ struct Mounted {
 /// The pro skeleton against the premultiplied atlas, which is the pairing a
 /// Spine export leaves you to make: three atlases, two skeletons, and no
 /// shared stem between them.
-constexpr nx::string_view SKELETON = "/spine/spineboy/export/spineboy-pro.skel";
-constexpr nx::string_view ATLAS = "/spine/spineboy/export/spineboy-pma.atlas";
 
 /// Counts what it was asked for, so a case can tell a page that resolved from
 /// one that was never looked up.
@@ -68,13 +71,15 @@ struct Resolver {
 
 TEST_CASE("spine: a skeleton loads through the VFS") {
   const Mounted mounted;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(mounted.ok());
 
   Resolver resolver;
   resolver.answer = pack_texture(7, 1);
   spine2d::SkeletonAsset asset;
   nx::string error;
-  REQUIRE(spine2d::load_skeleton(SKELETON, ATLAS, resolver.fn(), asset, error));
+  REQUIRE(
+      spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), asset, error));
   CHECK(error.empty());
   CHECK(asset.valid());
 
@@ -94,13 +99,15 @@ TEST_CASE("spine: a skeleton loads through the VFS") {
 
 TEST_CASE("spine: the atlas asks the host for its pages, and is told") {
   const Mounted mounted;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(mounted.ok());
 
   Resolver resolver;
   resolver.answer = pack_texture(3, 2);
   spine2d::SkeletonAsset asset;
   nx::string error;
-  REQUIRE(spine2d::load_skeleton(SKELETON, ATLAS, resolver.fn(), asset, error));
+  REQUIRE(
+      spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), asset, error));
 
   // One page, named beside the atlas rather than as an absolute path.
   REQUIRE(resolver.asked.size() >= 1u);
@@ -114,6 +121,7 @@ TEST_CASE("spine: the atlas asks the host for its pages, and is told") {
 
 TEST_CASE("spine: a page the host cannot back still loads, untextured") {
   const Mounted mounted;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(mounted.ok());
 
   Resolver resolver;
@@ -122,20 +130,23 @@ TEST_CASE("spine: a page the host cannot back still loads, untextured") {
   nx::string error;
   // A missing image is a character drawn in flat colour, not a refusal to
   // load: the rest of the skeleton is still worth having on screen.
-  REQUIRE(spine2d::load_skeleton(SKELETON, ATLAS, resolver.fn(), asset, error));
+  REQUIRE(
+      spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), asset, error));
   CHECK(asset.valid());
   CHECK(asset.bone_count() > 20u);
 }
 
 TEST_CASE("spine: reading goes through the VFS, not the C library") {
   const Mounted mounted;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(mounted.ok());
 
   const u64 before = spine2d::bytes_read();
   Resolver resolver;
   spine2d::SkeletonAsset asset;
   nx::string error;
-  REQUIRE(spine2d::load_skeleton(SKELETON, ATLAS, resolver.fn(), asset, error));
+  REQUIRE(
+      spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), asset, error));
 
   // SPINE_NO_FILE_IO is on, so anything the runtime read itself came through
   // our extension - which is what makes a skeleton inside an APK loadable.
@@ -144,12 +155,13 @@ TEST_CASE("spine: reading goes through the VFS, not the C library") {
 
 TEST_CASE("spine: a stem that names nothing is refused, and says so") {
   const Mounted mounted;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(mounted.ok());
 
   Resolver resolver;
   spine2d::SkeletonAsset asset;
   nx::string error;
-  CHECK_FALSE(spine2d::load_skeleton("/spine/nope/nothing.skel", ATLAS,
+  CHECK_FALSE(spine2d::load_skeleton("/spine/nope/nothing.skel", ATLAS_PMA,
                                      resolver.fn(), asset, error));
   CHECK_FALSE(error.empty());
   CHECK(error.find("nothing") != nx::string::npos);
@@ -158,31 +170,35 @@ TEST_CASE("spine: a stem that names nothing is refused, and says so") {
 
 TEST_CASE("spine: a failed load leaves a previous skeleton alone") {
   const Mounted mounted;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(mounted.ok());
 
   Resolver resolver;
   spine2d::SkeletonAsset asset;
   nx::string error;
-  REQUIRE(spine2d::load_skeleton(SKELETON, ATLAS, resolver.fn(), asset, error));
+  REQUIRE(
+      spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), asset, error));
   const usize bones = asset.bone_count();
   REQUIRE(bones > 0u);
 
   // Loading into the same asset clears it first, which is the honest
   // behaviour: what it holds after a failure is nothing, not a half-skeleton.
-  CHECK_FALSE(spine2d::load_skeleton("/spine/nope.skel", ATLAS, resolver.fn(),
-                                     asset, error));
+  CHECK_FALSE(spine2d::load_skeleton("/spine/nope.skel", ATLAS_PMA,
+                                     resolver.fn(), asset, error));
   CHECK_FALSE(asset.valid());
   CHECK(asset.bone_count() == 0u);
 }
 
 TEST_CASE("spine: moving an asset moves what it owns") {
   const Mounted mounted;
+  NX_REQUIRE_FIXTURE();
   REQUIRE(mounted.ok());
 
   Resolver resolver;
   spine2d::SkeletonAsset first;
   nx::string error;
-  REQUIRE(spine2d::load_skeleton(SKELETON, ATLAS, resolver.fn(), first, error));
+  REQUIRE(
+      spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), first, error));
   const usize bones = first.bone_count();
 
   const spine2d::SkeletonAsset second = std::move(first);

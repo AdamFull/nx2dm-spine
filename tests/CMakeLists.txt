@@ -13,16 +13,20 @@ target_link_libraries(nx_spine_tests
         PRIVATE nx::test nx::foundation nx::spine nx::rhi nx::stb
         nx::compile_options)
 
-# spineboy lives in the source tree and is mounted rather than copied: it is a
-# fixture, and its licence forbids commercial use, so it must not travel in a
-# staged build.
+# The fixture is not in this repository: spineboy is Spine's own example art and
+# its licence forbids commercial use of the images, so nothing here carries or
+# stages any. Point NX_SPINE_FIXTURE_DIR at a directory holding
+# spine/spineboy/export/ to run these; without one every case skips.
+set(NX_SPINE_FIXTURE_DIR "" CACHE PATH
+        "Directory holding spine/spineboy/export/ for the Spine tests")
+
 if (ANDROID)
     set(NX_TEST_SHADERS "${CMAKE_SOURCE_DIR}/android/app/src/main/assets/shaders")
 else ()
     set(NX_TEST_SHADERS "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
 endif ()
 target_compile_definitions(nx_spine_tests PRIVATE
-        NX_TEST_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets"
+        NX_SPINE_FIXTURE_DIR="${NX_SPINE_FIXTURE_DIR}"
         NX_TEST_SHADER_DIR="${NX_TEST_SHADERS}")
 if (TARGET nx_rendering_shaders)
     add_dependencies(nx_spine_tests nx_rendering_shaders)
