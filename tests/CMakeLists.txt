@@ -4,14 +4,18 @@
 # the runtime, which knows nothing about an Engine.
 
 add_executable(nx_spine_tests test_spine_assets.cpp test_spine_draw.cpp
-        test_spine_events.cpp test_spine_render.cpp)
+        test_spine_events.cpp test_spine_render.cpp test_spine_scripting.cpp)
+
+# The scripting case needs the module and the generated registry that hands
+# modules over: what it checks is that the module exposes on its own.
+nx_module_registry(nx_spine_tests)
 
 # nx::rhi and nx::stb for the one case that draws. nx_spine itself links
 # neither: proving a skeleton reaches a framebuffer needs a device to reach,
 # and a PNG writer to look at what landed.
 target_link_libraries(nx_spine_tests
         PRIVATE nx::test nx::foundation nx::spine nx::rhi nx::stb
-        nx::compile_options)
+        nx::engine nx::compile_options)
 
 # The fixture is not in this repository: spineboy is Spine's own example art and
 # its licence forbids commercial use of the images, so nothing here carries or

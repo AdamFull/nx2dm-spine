@@ -39,7 +39,7 @@ set_target_properties(nx_spine PROPERTIES FOLDER "modules")
 
 nx_module(spine
         DISPLAY "the Spine 2D runtime integration"
-        SOURCES spine_module.cpp
+        SOURCES spine_module.cpp spine_scripting.cpp
         DEPENDS nx::spine)
 
 if (NX_BUILD_TESTS)

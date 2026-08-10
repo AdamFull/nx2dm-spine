@@ -6,6 +6,8 @@
 
 #include "spine/spine_module.h"
 
+#include "spine/spine_scripting.h"
+
 #include "core/app/engine.h"
 #include "core/app/module.h"
 
@@ -26,6 +28,10 @@ public:
   bool on_register(Engine &engine) override {
     SpineSystem::register_components(engine.scene().registry());
     return true;
+  }
+
+  void on_expose_scripts(script::Host &host, Engine &engine) override {
+    expose_spine_services(host, engine);
   }
 
   bool on_attach(Engine &engine) override {
