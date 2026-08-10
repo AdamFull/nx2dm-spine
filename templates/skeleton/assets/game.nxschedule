@@ -1,0 +1,19 @@
+{
+  "_": [
+    "As the base template's, plus the script this project drives its skeleton",
+    "with. 'skeleton' is assets/scripts/skeleton.luau, loaded after host,",
+    "which it requires."
+  ],
+
+  "modules": [
+    "host_modules",
+    "host",
+    "skeleton"
+  ],
+
+  "stages": {
+    "UiEvents": ["core.ui_events"],
+    "Update":   ["game.skeleton", { "slot": "update" }],
+    "Present":  [{ "slot": "present" }]
+  }
+}
