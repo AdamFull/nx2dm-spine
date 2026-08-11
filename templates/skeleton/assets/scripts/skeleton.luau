@@ -4,9 +4,9 @@
 -- Everything here goes through the spine_* services the module exposes. The
 -- engine knows nothing about them: they arrive because project.json asks for
 -- the spine module, and the declarations host.luau checks against are written
--- into host_modules.luau by the build.
+-- into the generated host_api.luau by the build.
 
-local host = require("./host")
+local host = require("./host_api")
 
 local skeleton: number? = nil
 local elapsed = 0

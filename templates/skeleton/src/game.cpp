@@ -4,16 +4,14 @@
  */
 
 #include "core/app/engine.h"
+#include "core/app/script_runtime.h"
+#include "core/script/luau/luau_backend.h"
+#include "core/script/luau/luau_runtime.h"
 
 #include "spine/spine_assets.h"
 #include "spine/spine_module.h"
-#include "core/app/script_services.h"
-#include "core/script/luau/luau_backend.h"
-#include "core/script/luau/luau_bindings.h"
 
 #include "core/foundation/diagnostics/log.h"
-#include "core/foundation/strings/format.h"
-#include "core/foundation/vfs/vfs.h"
 
 namespace {
 
@@ -45,7 +43,12 @@ public:
     engine.scene().set_active_camera(camera);
 
     add_skeleton(engine);
-    start_scripts(engine);
+    if (nxe::start_scripts(
+            engine, {.backend = nxe::script::luau_backend(),
+                     .expose_game = {},
+                     .load_module = &nxe::script::load_luau_module}))
+      (void)engine.scripts().define(engine.schedule(), "skeleton",
+                                    "game.skeleton");
 
     nx::logi("{{project}}: up");
     return true;
@@ -89,77 +92,6 @@ public:
         .attach(engine.scene().registry(), e, m_skeleton)
         .play("idle");
   }
-
-  /// The script host: a backend, the engine's services, and the prelude.
-  ///
-  /// assets/scripts/host.luau declares every service by name and shape, and
-  /// the check below runs *both* ways - a service exposed and not declared is
-  /// as much an error as one declared and not exposed. Expose something of
-  /// your own and you add a line there in the same change.
-  void start_scripts(nxe::Engine &engine) {
-    if (!engine.scripts().set_backend(nxe::script::luau_backend())) {
-      nx::logw("{{project}}: no script backend; scripts will not run");
-      return;
-    }
-
-    nxe::script::expose_core_services(engine.scripts());
-    nxe::expose_action_services(engine.scripts(), engine.actions());
-    nxe::expose_audio_services(engine.scripts(), engine.audio());
-    nxe::expose_mixer_services(engine.scripts(), engine.mixer());
-    nxe::expose_scene_services(engine.scripts(), engine.scene());
-    nxe::expose_render_services(engine.scripts(), engine.render_vars());
-    nxe::expose_ui_services(engine.scripts(), engine.ui());
-    engine.scripts().expose_as("quit", [&engine] { engine.request_quit(); });
-
-    // Modules a project's own code exposes go in before this: binding is
-    // final, and a service offered afterwards is refused.
-    if (!engine.scripts().bind()) {
-      nx::logw("{{project}}: the VM took no host services");
-      return;
-    }
-
-    for (const nx::string &name : engine.frame().modules())
-      if (!load_script(engine, name))
-        return;
-
-    (void)engine.scripts().define(engine.schedule(), "skeleton",
-                                  "game.skeleton");
-  }
-
-  [[nodiscard]] static bool load_script(nxe::Engine &engine,
-                                        const nx::string_view name) {
-    const nx::string path = nx::format("/scripts/{}.luau", name);
-    const auto text = nx::vfs::read_text(path);
-    if (!text) {
-      nx::loge("{{project}}: no {}", path);
-      return false;
-    }
-
-    if (name == "host") {
-      const auto generated = nx::vfs::read_text("/scripts/host_modules.luau");
-      if (!generated) {
-        nx::loge("{{project}}: no /scripts/host_modules.luau; build the "
-                 "nx_host_declarations target");
-        return false;
-      }
-      const nx::string_view sources[] = {text.value().view(),
-                                         generated.value().view()};
-      nx::string disagreement;
-      if (!nxe::script::luau_host_types_agree(
-              sources, engine.scripts().services(), disagreement)) {
-        nx::loge("{{project}}: {} does not match the exposed services: {}",
-                 path, disagreement);
-        return false;
-      }
-    }
-
-    return engine.scripts().load(
-        name,
-        {reinterpret_cast<const std::byte *>(text.value().data()),
-         text.value().size()},
-        path);
-  }
-
 
 private:
   nxe::spine2d::SkeletonAsset m_skeleton;
