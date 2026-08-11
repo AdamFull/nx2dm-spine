@@ -86,50 +86,66 @@ private:
   scene::Entity m_entity;
 };
 
+void SpineInstanceObjectDeleter::operator()(
+    ::spine::Skeleton *const skeleton) const noexcept {
+  delete skeleton;
+}
+
+void SpineInstanceObjectDeleter::operator()(
+    ::spine::AnimationState *const animation) const noexcept {
+  delete animation;
+}
+
+void SpineEventSinkDeleter::operator()(
+    SpineEventSink *const sink) const noexcept {
+  nx::release(sink);
+}
+
 } // namespace detail
 
 SpineInstance::SpineInstance(const SkeletonAsset &asset,
                              const scene::Entity owner)
-    : m_entity(owner) {
+    : m_asset(asset), m_entity(owner) {
   if (!asset.valid())
     return;
-  m_skeleton = new ::spine::Skeleton(*asset.data());
-  m_animation = new ::spine::AnimationState(*asset.mixes());
-  m_sink = new detail::SpineEventSink(owner);
-  m_animation->setListener(m_sink);
+  // These are SpineObjects: their class-specific operator new routes through
+  // VfsExtension and therefore nx::mem_alloc, with the zero-fill Spine needs.
+  m_skeleton.reset(new ::spine::Skeleton(*asset.data()));
+  m_animation.reset(new ::spine::AnimationState(*asset.mixes()));
+  // SpineEventSink is ours, not a SpineObject, so it uses the engine allocator.
+  // Its out-of-line deleter lets the public header keep the sink opaque.
+  m_sink.reset(nx::allocate<detail::SpineEventSink>(owner));
+  if (m_sink == nullptr) {
+    reset();
+    return;
+  }
+  m_animation->setListener(m_sink.get());
 }
 
 SpineInstance::~SpineInstance() { reset(); }
 
 SpineInstance::SpineInstance(SpineInstance &&other) noexcept
-    : m_skeleton(other.m_skeleton), m_animation(other.m_animation),
-      m_sink(other.m_sink), m_entity(other.m_entity) {
-  other.m_skeleton = nullptr;
-  other.m_animation = nullptr;
-  other.m_sink = nullptr;
-}
+    : m_asset(std::move(other.m_asset)),
+      m_skeleton(std::move(other.m_skeleton)),
+      m_animation(std::move(other.m_animation)),
+      m_sink(std::move(other.m_sink)), m_entity(other.m_entity) {}
 
 SpineInstance &SpineInstance::operator=(SpineInstance &&other) noexcept {
   if (this != &other) {
     reset();
-    m_skeleton = other.m_skeleton;
-    m_animation = other.m_animation;
-    m_sink = other.m_sink;
+    m_asset = std::move(other.m_asset);
+    m_skeleton = std::move(other.m_skeleton);
+    m_animation = std::move(other.m_animation);
+    m_sink = std::move(other.m_sink);
     m_entity = other.m_entity;
-    other.m_skeleton = nullptr;
-    other.m_animation = nullptr;
-    other.m_sink = nullptr;
   }
   return *this;
 }
 
 void SpineInstance::reset() noexcept {
-  delete m_animation;
-  delete m_skeleton;
-  delete m_sink;
-  m_animation = nullptr;
-  m_skeleton = nullptr;
-  m_sink = nullptr;
+  m_animation.reset();
+  m_skeleton.reset();
+  m_sink.reset();
 }
 
 bool SpineInstance::play(const nx::string_view name, const bool loop,

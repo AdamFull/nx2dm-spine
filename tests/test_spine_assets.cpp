@@ -19,6 +19,8 @@
 #include "spine/spine_assets.h"
 #include "spine/spine_platform.h"
 
+#include <type_traits>
+
 namespace {
 
 using namespace nxm::spine_test;
@@ -68,6 +70,12 @@ struct Resolver {
 };
 
 } // namespace
+
+TEST_CASE("spine: an asset handle is one pointer and cheap to retain") {
+  CHECK(sizeof(spine2d::SkeletonAsset) == sizeof(void *));
+  CHECK(std::is_nothrow_copy_constructible_v<spine2d::SkeletonAsset>);
+  CHECK(std::is_nothrow_copy_assignable_v<spine2d::SkeletonAsset>);
+}
 
 TEST_CASE("spine: a skeleton loads through the VFS") {
   const Mounted mounted;
@@ -168,7 +176,7 @@ TEST_CASE("spine: a stem that names nothing is refused, and says so") {
   CHECK_FALSE(asset.valid());
 }
 
-TEST_CASE("spine: a failed load leaves a previous skeleton alone") {
+TEST_CASE("spine: a failed reload clears only the caller's handle") {
   const Mounted mounted;
   NX_REQUIRE_FIXTURE();
   REQUIRE(mounted.ok());
@@ -180,16 +188,19 @@ TEST_CASE("spine: a failed load leaves a previous skeleton alone") {
       spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), asset, error));
   const usize bones = asset.bone_count();
   REQUIRE(bones > 0u);
+  const spine2d::SkeletonAsset retained = asset;
 
-  // Loading into the same asset clears it first, which is the honest
-  // behaviour: what it holds after a failure is nothing, not a half-skeleton.
+  // The output honestly reports that this reload produced nothing, while
+  // components and poses retaining the last version remain valid.
   CHECK_FALSE(spine2d::load_skeleton("/spine/nope.skel", ATLAS_PMA,
                                      resolver.fn(), asset, error));
   CHECK_FALSE(asset.valid());
   CHECK(asset.bone_count() == 0u);
+  CHECK(retained.valid());
+  CHECK(retained.bone_count() == bones);
 }
 
-TEST_CASE("spine: moving an asset moves what it owns") {
+TEST_CASE("spine: an asset handle keeps a loaded version alive") {
   const Mounted mounted;
   NX_REQUIRE_FIXTURE();
   REQUIRE(mounted.ok());
@@ -201,9 +212,11 @@ TEST_CASE("spine: moving an asset moves what it owns") {
       spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), first, error));
   const usize bones = first.bone_count();
 
-  const spine2d::SkeletonAsset second = std::move(first);
+  const spine2d::SkeletonAsset second = first;
+  CHECK(first.same_version(second));
+  first = {};
   CHECK(second.valid());
   CHECK(second.bone_count() == bones);
-  // Move-only and destructive, so the corpse frees nothing twice.
+  // Dropping one handle cannot invalidate another owner of the version.
   CHECK_FALSE(first.valid());
 }

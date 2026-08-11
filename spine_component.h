@@ -8,6 +8,7 @@
 
 #include "core/rendering/render2d/mesh_channel.h"
 #include "core/scene/components.h"
+#include "spine/spine_assets.h"
 
 #include <glm/glm.hpp>
 
@@ -19,8 +20,6 @@ class AnimationState;
 } // namespace spine
 
 namespace nxe::spine2d {
-
-class SkeletonAsset;
 
 enum class SpineEventKind : u8 {
   Started,
@@ -43,7 +42,7 @@ struct SpineEvent {
 };
 
 struct SpineComponent {
-  const SkeletonAsset *asset = nullptr;
+  SkeletonAsset asset;
   glm::vec4 color{1.f, 1.f, 1.f, 1.f};
   f32 time_scale = 1.f;
   i32 layer = 0;
@@ -52,6 +51,13 @@ struct SpineComponent {
 
 namespace detail {
 class SpineEventSink;
+struct SpineInstanceObjectDeleter {
+  void operator()(::spine::Skeleton *skeleton) const noexcept;
+  void operator()(::spine::AnimationState *animation) const noexcept;
+};
+struct SpineEventSinkDeleter {
+  void operator()(SpineEventSink *sink) const noexcept;
+};
 } // namespace detail
 
 class SpineInstance {
@@ -68,13 +74,20 @@ public:
   [[nodiscard]] bool valid() const noexcept { return m_skeleton != nullptr; }
 
   [[nodiscard]] ::spine::Skeleton *skeleton() const noexcept {
-    return m_skeleton;
+    return m_skeleton.get();
   }
   [[nodiscard]] ::spine::AnimationState *animation() const noexcept {
-    return m_animation;
+    return m_animation.get();
   }
 
   [[nodiscard]] scene::Entity entity() const noexcept { return m_entity; }
+
+  [[nodiscard]] bool uses(const SkeletonAsset &asset) const noexcept {
+    return m_asset.same_version(asset);
+  }
+  [[nodiscard]] bool premultiplied() const noexcept {
+    return m_asset.premultiplied();
+  }
 
   bool play(nx::string_view name, bool loop = true, usize track = 0);
   bool queue(nx::string_view name, bool loop = true, f32 delay = 0.f,
@@ -90,9 +103,12 @@ public:
 private:
   void reset() noexcept;
 
-  ::spine::Skeleton *m_skeleton = nullptr;
-  ::spine::AnimationState *m_animation = nullptr;
-  detail::SpineEventSink *m_sink = nullptr;
+  SkeletonAsset m_asset;
+  nx::unique_ptr<::spine::Skeleton, detail::SpineInstanceObjectDeleter>
+      m_skeleton;
+  nx::unique_ptr<::spine::AnimationState, detail::SpineInstanceObjectDeleter>
+      m_animation;
+  nx::unique_ptr<detail::SpineEventSink, detail::SpineEventSinkDeleter> m_sink;
   scene::Entity m_entity;
 };
 

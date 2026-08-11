@@ -59,7 +59,7 @@ SpineInstance &SpineSystem::attach(scene::registry_t &registry,
   SpineComponent *component = registry.try_get<SpineComponent>(e);
   if (component == nullptr)
     component = &registry.emplace<SpineComponent>(e);
-  component->asset = &asset;
+  component->asset = asset;
   return registry.emplace_or_replace<SpineInstance>(e, asset, e);
 }
 
@@ -69,13 +69,21 @@ usize SpineSystem::update(scene::registry_t &registry, const f32 dt) {
   m_pending.clear();
   registry.view<const SpineComponent>().each(
       [&](const scene::Entity e, const SpineComponent &component) {
-        if (component.asset != nullptr && component.asset->valid() &&
-            !registry.has<SpineInstance>(e))
+        const SpineInstance *const instance =
+            registry.try_get<SpineInstance>(e);
+        if ((component.asset.valid() &&
+             (instance == nullptr || !instance->valid() ||
+              !instance->uses(component.asset))) ||
+            (!component.asset.valid() && instance != nullptr))
           m_pending.push_back(e);
       });
-  for (const scene::Entity e : m_pending)
-    registry.emplace<SpineInstance>(e, *registry.get<SpineComponent>(e).asset,
-                                    e);
+  for (const scene::Entity e : m_pending) {
+    const SkeletonAsset &asset = registry.get<SpineComponent>(e).asset;
+    if (asset.valid())
+      registry.emplace_or_replace<SpineInstance>(e, asset, e);
+    else
+      (void)registry.remove<SpineInstance>(e);
+  }
 
   m_posed.clear();
   m_posed_data.clear();
@@ -120,14 +128,15 @@ usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,
             const scene::WorldTransform2D>()
       .each([&](const scene::Entity, const SpineComponent &component,
                 SpineInstance &instance, const scene::WorldTransform2D &node) {
-        if (!component.visible || !instance.valid() ||
-            component.asset == nullptr)
+        if (!component.visible || !instance.valid())
           return;
 
         if (m_renderer == nullptr)
           m_renderer = new ::spine::SkeletonRenderer();
 
-        const bool premultiplied = component.asset->premultiplied();
+        // Rendering metadata comes from the same retained asset version that
+        // constructed the pose, never from a potentially replaced component.
+        const bool premultiplied = instance.premultiplied();
         const u32 layer = nx::cast<u32>(component.layer + 2048) & 0xFFFu;
         const u32 key = nx_make_sort_key(layer,
                                          r2d::quantize_depth(node.world[2][1],

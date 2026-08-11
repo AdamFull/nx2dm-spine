@@ -6,13 +6,13 @@
  */
 
 #include "core/foundation/core/callable.h"
+#include "core/foundation/core/foundation.h"
 #include "core/foundation/strings/utf8_string.h"
 
 namespace spine {
 class Atlas;
 class SkeletonData;
 class AnimationStateData;
-class TextureLoader;
 } // namespace spine
 
 namespace nxe::spine2d {
@@ -20,25 +20,36 @@ namespace nxe::spine2d {
 using TextureResolver =
     nx::function<u32(nx::string_view path, bool premultiplied)>;
 
+namespace detail {
+class SkeletonAssetData;
+}
+
+/// A cheap, copyable handle to one stable loaded skeleton version. Runtime
+/// poses keep their own handle, so replacing or destroying the caller's handle
+/// cannot invalidate Spine objects that still refer to that version's data.
 class SkeletonAsset {
 public:
   SkeletonAsset() = default;
-  ~SkeletonAsset();
+  ~SkeletonAsset() = default;
 
-  SkeletonAsset(const SkeletonAsset &) = delete;
-  SkeletonAsset &operator=(const SkeletonAsset &) = delete;
-  SkeletonAsset(SkeletonAsset &&other) noexcept;
-  SkeletonAsset &operator=(SkeletonAsset &&other) noexcept;
+  SkeletonAsset(const SkeletonAsset &) noexcept = default;
+  SkeletonAsset &operator=(const SkeletonAsset &) noexcept = default;
+  SkeletonAsset(SkeletonAsset &&) noexcept = default;
+  SkeletonAsset &operator=(SkeletonAsset &&) noexcept = default;
 
-  [[nodiscard]] bool valid() const noexcept { return m_data != nullptr; }
+  [[nodiscard]] bool valid() const noexcept;
 
-  [[nodiscard]] ::spine::SkeletonData *data() const noexcept { return m_data; }
-  [[nodiscard]] ::spine::Atlas *atlas() const noexcept { return m_atlas; }
-  [[nodiscard]] ::spine::AnimationStateData *mixes() const noexcept {
-    return m_mixes;
+  [[nodiscard]] ::spine::SkeletonData *data() const noexcept;
+  [[nodiscard]] ::spine::Atlas *atlas() const noexcept;
+  [[nodiscard]] ::spine::AnimationStateData *mixes() const noexcept;
+
+  [[nodiscard]] bool premultiplied() const noexcept;
+
+  /// True only when both handles name the exact same loaded version. This is
+  /// a pointer comparison; it does not inspect or copy skeleton data.
+  [[nodiscard]] bool same_version(const SkeletonAsset &other) const noexcept {
+    return m_version == other.m_version;
   }
-
-  [[nodiscard]] bool premultiplied() const noexcept { return m_premultiplied; }
 
   [[nodiscard]] usize bone_count() const noexcept;
   [[nodiscard]] usize slot_count() const noexcept;
@@ -50,13 +61,7 @@ private:
   friend bool load_skeleton(nx::string_view, nx::string_view, TextureResolver,
                             SkeletonAsset &, nx::string &);
 
-  void reset() noexcept;
-
-  ::spine::TextureLoader *m_loader = nullptr;
-  ::spine::Atlas *m_atlas = nullptr;
-  ::spine::SkeletonData *m_data = nullptr;
-  ::spine::AnimationStateData *m_mixes = nullptr;
-  bool m_premultiplied = false;
+  nx::shared_ptr<const detail::SkeletonAssetData> m_version;
 };
 
 [[nodiscard]] bool load_skeleton(nx::string_view skeleton_path,

@@ -10,6 +10,7 @@
 #include <cstring>
 
 #include <atomic>
+#include <cstdlib>
 
 namespace nxe::spine2d {
 namespace {
@@ -74,7 +75,9 @@ void install_platform() {
   ::spine::Bone::setYDown(false);
 
   static VfsExtension *const extension = [] {
-    auto *const fresh = new VfsExtension();
+    auto *const fresh = nx::allocate<VfsExtension>();
+    if (fresh == nullptr)
+      std::abort();
     ::spine::SpineExtension::setInstance(fresh);
     return fresh;
   }();

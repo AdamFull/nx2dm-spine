@@ -56,77 +56,77 @@ private:
 
 } // namespace
 
-SkeletonAsset::~SkeletonAsset() { reset(); }
+namespace detail {
 
-SkeletonAsset::SkeletonAsset(SkeletonAsset &&other) noexcept
-    : m_loader(other.m_loader), m_atlas(other.m_atlas), m_data(other.m_data),
-      m_mixes(other.m_mixes), m_premultiplied(other.m_premultiplied) {
-  other.m_loader = nullptr;
-  other.m_atlas = nullptr;
-  other.m_data = nullptr;
-  other.m_mixes = nullptr;
-}
-
-SkeletonAsset &SkeletonAsset::operator=(SkeletonAsset &&other) noexcept {
-  if (this != &other) {
-    reset();
-    m_loader = other.m_loader;
-    m_atlas = other.m_atlas;
-    m_data = other.m_data;
-    m_mixes = other.m_mixes;
-    m_premultiplied = other.m_premultiplied;
-    other.m_loader = nullptr;
-    other.m_atlas = nullptr;
-    other.m_data = nullptr;
-    other.m_mixes = nullptr;
+struct SpineObjectDeleter {
+  template <typename T> void operator()(T *const object) const noexcept {
+    delete object;
   }
-  return *this;
+};
+
+class SkeletonAssetData {
+public:
+  // Declaration order gives the required reverse destruction: mixes, data,
+  // atlas, then loader. Their class-specific delete returns memory through
+  // VfsExtension to nx::mem_free; the unique pointers provide only ownership.
+  nx::unique_ptr<::spine::TextureLoader, SpineObjectDeleter> loader;
+  nx::unique_ptr<::spine::Atlas, SpineObjectDeleter> atlas;
+  nx::unique_ptr<::spine::SkeletonData, SpineObjectDeleter> data;
+  nx::unique_ptr<::spine::AnimationStateData, SpineObjectDeleter> mixes;
+  bool premultiplied = false;
+};
+
+} // namespace detail
+
+bool SkeletonAsset::valid() const noexcept {
+  return m_version != nullptr && m_version->data != nullptr;
 }
 
-void SkeletonAsset::reset() noexcept {
-  // Reverse of construction: the mixes reference the data, and the data's
-  // attachments reference the atlas's regions.
-  delete m_mixes;
-  delete m_data;
-  delete m_atlas;
-  // After the atlas: its destructor calls unload() on this.
-  delete m_loader;
-  m_mixes = nullptr;
-  m_data = nullptr;
-  m_atlas = nullptr;
-  m_loader = nullptr;
-  m_premultiplied = false;
+::spine::SkeletonData *SkeletonAsset::data() const noexcept {
+  return m_version == nullptr ? nullptr : m_version->data.get();
+}
+
+::spine::Atlas *SkeletonAsset::atlas() const noexcept {
+  return m_version == nullptr ? nullptr : m_version->atlas.get();
+}
+
+::spine::AnimationStateData *SkeletonAsset::mixes() const noexcept {
+  return m_version == nullptr ? nullptr : m_version->mixes.get();
+}
+
+bool SkeletonAsset::premultiplied() const noexcept {
+  return m_version != nullptr && m_version->premultiplied;
 }
 
 usize SkeletonAsset::bone_count() const noexcept {
-  return m_data == nullptr ? 0u : nx::cast<usize>(m_data->getBones().size());
+  return data() == nullptr ? 0u : nx::cast<usize>(data()->getBones().size());
 }
 
 usize SkeletonAsset::slot_count() const noexcept {
-  return m_data == nullptr ? 0u : nx::cast<usize>(m_data->getSlots().size());
+  return data() == nullptr ? 0u : nx::cast<usize>(data()->getSlots().size());
 }
 
 usize SkeletonAsset::animation_count() const noexcept {
-  return m_data == nullptr ? 0u
-                           : nx::cast<usize>(m_data->getAnimations().size());
+  return data() == nullptr ? 0u
+                           : nx::cast<usize>(data()->getAnimations().size());
 }
 
 usize SkeletonAsset::skin_count() const noexcept {
-  return m_data == nullptr ? 0u : nx::cast<usize>(m_data->getSkins().size());
+  return data() == nullptr ? 0u : nx::cast<usize>(data()->getSkins().size());
 }
 
 bool SkeletonAsset::has_animation(const nx::string_view name) const noexcept {
-  if (m_data == nullptr)
+  if (data() == nullptr)
     return false;
   const nx::string owned(name);
-  return m_data->findAnimation(::spine::String(owned.c_str())) != nullptr;
+  return data()->findAnimation(::spine::String(owned.c_str())) != nullptr;
 }
 
 bool load_skeleton(const nx::string_view skeleton_path,
                    const nx::string_view atlas_path, TextureResolver resolve,
                    SkeletonAsset &out, nx::string &error) {
   install_platform();
-  out.reset();
+  out.m_version.reset();
   error.clear();
 
   const auto atlas_text = nx::vfs::read(atlas_path);
@@ -139,13 +139,18 @@ bool load_skeleton(const nx::string_view skeleton_path,
   // directory the atlas came from rather than the atlas itself.
   const nx::string dir(nx::fs::path::parent_path(atlas_path));
 
-  auto *const loader = new ResolvingLoader(std::move(resolve));
-  auto *const atlas = new ::spine::Atlas(
+  nx::shared_ptr<detail::SkeletonAssetData> loaded =
+      nx::make_shared<detail::SkeletonAssetData>();
+  if (loaded == nullptr) {
+    error = "out of memory while loading skeleton";
+    return false;
+  }
+
+  loaded->loader.reset(new ResolvingLoader(std::move(resolve)));
+  loaded->atlas.reset(new ::spine::Atlas(
       reinterpret_cast<const char *>(atlas_text->data()),
-      nx::cast<int>(atlas_text->size()), dir.c_str(), loader);
-  if (atlas->getPages().size() == 0) {
-    delete atlas;
-    delete loader;
+      nx::cast<int>(atlas_text->size()), dir.c_str(), loaded->loader.get()));
+  if (loaded->atlas->getPages().size() == 0) {
     error = nx::format("'{}' names no pages", atlas_path);
     return false;
   }
@@ -154,7 +159,7 @@ bool load_skeleton(const nx::string_view skeleton_path,
   const bool binary = nx::fs::path::extension(skeleton_path) == ".skel";
   if (binary) {
     if (const auto bytes = nx::vfs::read(skeleton_path)) {
-      ::spine::SkeletonBinary reader(*atlas);
+      ::spine::SkeletonBinary reader(*loaded->atlas);
       data = reader.readSkeletonData(
           reinterpret_cast<const unsigned char *>(bytes->data()),
           nx::cast<int>(bytes->size()));
@@ -164,7 +169,7 @@ bool load_skeleton(const nx::string_view skeleton_path,
       error = nx::format("no skeleton at '{}'", skeleton_path);
     }
   } else if (const auto text = nx::vfs::read_text(skeleton_path)) {
-    ::spine::SkeletonJson reader(*atlas);
+    ::spine::SkeletonJson reader(*loaded->atlas);
     data = reader.readSkeletonData(text->c_str());
     if (data == nullptr)
       error = nx::format("{}: {}", skeleton_path, to_view(reader.getError()));
@@ -173,16 +178,14 @@ bool load_skeleton(const nx::string_view skeleton_path,
   }
 
   if (data == nullptr) {
-    delete atlas;
-    delete loader;
     return false;
   }
 
-  out.m_loader = loader;
-  out.m_atlas = atlas;
-  out.m_data = data;
-  out.m_mixes = new ::spine::AnimationStateData(*data);
-  out.m_premultiplied = loader->premultiplied();
+  loaded->data.reset(data);
+  loaded->mixes.reset(new ::spine::AnimationStateData(*data));
+  loaded->premultiplied =
+      static_cast<ResolvingLoader *>(loaded->loader.get())->premultiplied();
+  out.m_version = std::move(loaded);
   nx::logi("spine: '{}' - {} bones, {} slots, {} animations{}", skeleton_path,
            out.bone_count(), out.slot_count(), out.animation_count(),
            out.premultiplied() ? ", premultiplied" : "");

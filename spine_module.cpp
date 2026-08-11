@@ -13,6 +13,8 @@
 
 #include "core/foundation/diagnostics/log.h"
 
+extern "C" nxe::Module *nx_module_spine();
+
 namespace nxe::spine2d {
 namespace {
 
@@ -42,16 +44,16 @@ public:
   }
 
   bool on_attach(Engine &engine) override {
-    system().set_threads(&engine.threads());
+    m_system.set_threads(&engine.threads());
 
     engine.schedule().define(
-        UPDATE_SYSTEM, sys::SystemFn([&engine](const sys::Context &c) {
-          (void)system().update(engine.scene().registry(), c.dt);
+        UPDATE_SYSTEM, sys::SystemFn([this, &engine](const sys::Context &c) {
+          (void)m_system.update(engine.scene().registry(), c.dt);
         }));
     engine.schedule().add(sys::Stage::Update, UPDATE_SYSTEM);
 
     engine.schedule().define(
-        EMIT_SYSTEM, sys::SystemFn([&engine](const sys::Context &) {
+        EMIT_SYSTEM, sys::SystemFn([this, &engine](const sys::Context &) {
           r2d::MeshChannel *const meshes = engine.mesh_channel();
           const r2d::FramePacket *const packet = engine.frame_packet();
           if (meshes == nullptr || packet == nullptr)
@@ -59,20 +61,26 @@ public:
           const SpineView view{.camera = packet->active_camera,
                                .depth_min = engine.renderer().depth_min(),
                                .depth_max = engine.renderer().depth_max()};
-          (void)system().emit(engine.scene().registry(), *meshes, view);
+          (void)m_system.emit(engine.scene().registry(), *meshes, view);
         }));
     engine.schedule().add(sys::Stage::Present, EMIT_SYSTEM);
 
     nx::logi("spine: attached");
     return true;
   }
+
+  void on_detach(Engine &) override { m_system.set_threads(nullptr); }
+
+  [[nodiscard]] SpineSystem &system() noexcept { return m_system; }
+
+private:
+  SpineSystem m_system;
 };
 
 } // namespace
 
 SpineSystem &system() {
-  static SpineSystem instance;
-  return instance;
+  return static_cast<SpineModule *>(nx_module_spine())->system();
 }
 
 } // namespace nxe::spine2d

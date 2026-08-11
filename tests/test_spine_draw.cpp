@@ -381,7 +381,7 @@ TEST_CASE("spine: a component that arrived without a pose gets one") {
   // What loading a .nxscene leaves behind: authoring data and no runtime.
   const scene::Entity e = registry.create();
   registry.emplace<scene::WorldTransform2D>(e);
-  registry.emplace<spine2d::SpineComponent>(e).asset = &loaded.asset;
+  registry.emplace<spine2d::SpineComponent>(e).asset = loaded.asset;
   CHECK_FALSE(registry.has<spine2d::SpineInstance>(e));
 
   CHECK(system.update(registry, 0.1f) == 1u);
@@ -390,6 +390,85 @@ TEST_CASE("spine: a component that arrived without a pose gets one") {
 
   r2d::MeshChannel channel;
   CHECK(system.emit(registry, channel, {}) > 0u);
+}
+
+TEST_CASE("spine: a component and pose retain their asset version") {
+  Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  scene::registry_t registry = bare_registry();
+  spine2d::SpineSystem system;
+  const scene::Entity e = place(registry, system, loaded.asset, {0.f, 0.f});
+  REQUIRE(registry.get<spine2d::SpineInstance>(e).play("walk"));
+
+  // The game-side handle may be reloaded or destroyed while this entity is
+  // alive. Both ECS records retain the immutable version they actually use.
+  loaded.asset = {};
+  CHECK(registry.get<spine2d::SpineComponent>(e).asset.valid());
+  CHECK(system.update(registry, 0.1f) == 1u);
+
+  r2d::MeshChannel channel;
+  CHECK(system.emit(registry, channel, {}) > 0u);
+}
+
+TEST_CASE("spine: replacing a component asset rebuilds a coherent pose") {
+  Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  scene::registry_t registry = bare_registry();
+  spine2d::SpineSystem system;
+  const scene::Entity e = place(registry, system, loaded.asset, {0.f, 0.f});
+  REQUIRE(registry.get<spine2d::SpineInstance>(e).premultiplied());
+
+  spine2d::SkeletonAsset replacement;
+  nx::string error;
+  REQUIRE(spine2d::load_skeleton(
+      SKELETON, ATLAS_STRAIGHT,
+      spine2d::TextureResolver([](nx::string_view, bool) {
+        return nx::cast<u32>(pack_texture(8, 1));
+      }),
+      replacement, error));
+  REQUIRE_FALSE(replacement.premultiplied());
+
+  registry.get<spine2d::SpineComponent>(e).asset = replacement;
+  CHECK(system.update(registry, 0.1f) == 1u);
+  const spine2d::SpineInstance &instance =
+      registry.get<spine2d::SpineInstance>(e);
+  CHECK(instance.uses(replacement));
+  CHECK_FALSE(instance.premultiplied());
+
+  r2d::MeshChannel channel;
+  REQUIRE(system.emit(registry, channel, {}) > 0u);
+  CHECK(channel.draws[0].blend == r2d::MeshBlend::Normal);
+}
+
+TEST_CASE("spine: clearing a component asset removes its stale pose") {
+  Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  scene::registry_t registry = bare_registry();
+  spine2d::SpineSystem system;
+  const scene::Entity e = place(registry, system, loaded.asset, {0.f, 0.f});
+  REQUIRE(registry.has<spine2d::SpineInstance>(e));
+
+  registry.get<spine2d::SpineComponent>(e).asset = {};
+  CHECK(system.update(registry, 0.1f) == 0u);
+  CHECK_FALSE(registry.has<spine2d::SpineInstance>(e));
+}
+
+TEST_CASE("spine: an invalid component cannot retain a runtime pose") {
+  scene::registry_t registry = bare_registry();
+  spine2d::SpineSystem system;
+  const scene::Entity e = registry.create();
+  registry.emplace<spine2d::SpineComponent>(e);
+  registry.emplace<spine2d::SpineInstance>(e);
+  REQUIRE(registry.has<spine2d::SpineInstance>(e));
+
+  CHECK(system.update(registry, 0.1f) == 0u);
+  CHECK_FALSE(registry.has<spine2d::SpineInstance>(e));
 }
 
 TEST_CASE("spine: an animation the skeleton does not have is refused") {
