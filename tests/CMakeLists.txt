@@ -25,7 +25,7 @@ set(NX_SPINE_FIXTURE_DIR "" CACHE PATH
         "Directory holding spine/spineboy/export/ for the Spine tests")
 
 if (ANDROID)
-    set(NX_TEST_SHADERS "${CMAKE_SOURCE_DIR}/android/app/src/main/assets/shaders")
+    set(NX_TEST_SHADERS "${NX_ANDROID_SHADER_OUT}")
 else ()
     set(NX_TEST_SHADERS "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
 endif ()
