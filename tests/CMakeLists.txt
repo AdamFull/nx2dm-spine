@@ -17,12 +17,27 @@ target_link_libraries(nx_spine_tests
         PRIVATE nx::test nx::foundation nx::spine nx::rhi nx::stb
         nx::engine nx::compile_options)
 
-# The fixture is not in this repository: spineboy is Spine's own example art and
-# its licence forbids commercial use of the images, so nothing here carries or
-# stages any. Point NX_SPINE_FIXTURE_DIR at a directory holding
-# spine/spineboy/export/ to run these; without one every case skips.
+# spineboy is Spine's own example art, redistributable with the runtimes, and a
+# copy already ships under the module template. When no private export is named
+# it is staged into the layout the cases expect, so the suite runs by default;
+# NX_SPINE_FIXTURE_DIR still points these at another export when set.
 set(NX_SPINE_FIXTURE_DIR "" CACHE PATH
-        "Directory holding spine/spineboy/export/ for the Spine tests")
+        "Directory holding spine/spineboy/export/; empty stages the bundled spineboy")
+if (NX_SPINE_FIXTURE_DIR STREQUAL "")
+    set(_spine_assets "${CMAKE_CURRENT_SOURCE_DIR}/../templates/skeleton/assets/spine")
+    set(_spine_export "${CMAKE_CURRENT_BINARY_DIR}/fixture/spine/spineboy/export")
+    configure_file("${_spine_assets}/spineboy-pro.skel"  "${_spine_export}/spineboy-pro.skel"  COPYONLY)
+    configure_file("${_spine_assets}/spineboy-pma.atlas" "${_spine_export}/spineboy-pma.atlas" COPYONLY)
+    configure_file("${_spine_assets}/spineboy-pma.png"   "${_spine_export}/spineboy-pma.png"   COPYONLY)
+    # The straight-alpha atlas the blend case pairs against, derived from the
+    # premultiplied one: same regions, only the page name and pma flag differ.
+    # The draw cases resolve textures through a stub, so no straight PNG is read.
+    file(READ "${_spine_assets}/spineboy-pma.atlas" _spine_pma_atlas)
+    string(REPLACE "spineboy-pma.png" "spineboy.png" _spine_straight "${_spine_pma_atlas}")
+    string(REPLACE "pma: true" "pma: false" _spine_straight "${_spine_straight}")
+    file(WRITE "${_spine_export}/spineboy.atlas" "${_spine_straight}")
+    set(NX_SPINE_FIXTURE_DIR "${CMAKE_CURRENT_BINARY_DIR}/fixture")
+endif ()
 
 if (ANDROID)
     set(NX_TEST_SHADERS "${NX_ANDROID_SHADER_OUT}")
@@ -31,7 +46,8 @@ else ()
 endif ()
 target_compile_definitions(nx_spine_tests PRIVATE
         NX_SPINE_FIXTURE_DIR="${NX_SPINE_FIXTURE_DIR}"
-        NX_TEST_SHADER_DIR="${NX_TEST_SHADERS}")
+        NX_TEST_SHADER_DIR="${NX_TEST_SHADERS}"
+        NX_REQUIRE_MODULE_FIXTURES=$<BOOL:${NX_REQUIRE_MODULE_FIXTURES}>)
 if (TARGET nx_rendering_shaders)
     add_dependencies(nx_spine_tests nx_rendering_shaders)
 endif ()

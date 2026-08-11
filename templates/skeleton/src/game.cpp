@@ -61,7 +61,7 @@ public:
     // The atlas is a -pma export: its colour is already multiplied by alpha,
     // which decides how it is decoded as well as how it blends.
     const nxe::rhi::TextureHandle page =
-        engine.load_texture("/spine/spineboy-pma.png", true);
+        engine.load_texture("/spine/spineboy-pma.png");
     if (!page.valid()) {
       nx::logw("{{project}}: no skeleton art under /spine");
       return;

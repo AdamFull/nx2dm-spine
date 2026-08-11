@@ -6,7 +6,7 @@
  */
 
 namespace nxe {
-class Engine;
+class ModuleContext;
 namespace script {
 class Host;
 }
@@ -14,6 +14,6 @@ class Host;
 
 namespace nxe::spine2d {
 
-void expose_spine_services(script::Host &host, Engine &engine);
+void expose_spine_services(script::Host &host, ModuleContext &ctx);
 
 } // namespace nxe::spine2d

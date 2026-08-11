@@ -4,13 +4,15 @@
  * @file fixture.h
  * @brief Where spineboy is, when he is anywhere (namespace nxm::spine_test).
  *
- * The fixture is not in the repository. It is Spine's own example art, and its
- * licence says the images "may not be used for commercial use of any kind", so
- * a checkout carries none of it and no build stages any.
+ * spineboy is Spine's own example art. A copy ships under the spine module
+ * template, and the tests' build stages it into `spine/spineboy/export/`, so
+ * these cases run out of a plain checkout. NX_SPINE_FIXTURE_DIR points them at
+ * another export instead.
  *
- * Point NX_SPINE_FIXTURE_DIR at a directory holding `spine/spineboy/export/`
- * to run these cases; without one they skip rather than fail, like the
- * rendering suite does without a GPU.
+ * The fixture can still be absent - a hand-set NX_SPINE_FIXTURE_DIR without the
+ * art, say. Then a case skips rather than fails, like the rendering suite does
+ * without a GPU, unless NX_REQUIRE_MODULE_FIXTURES turns that skip into a
+ * failure so CI cannot go green having tested nothing.
  */
 
 #include "framework/nxtest.h"
@@ -44,11 +46,21 @@ inline constexpr nx::string_view ATLAS_STRAIGHT =
 
 } // namespace nxm::spine_test
 
-/// Skips the case when the fixture is absent. Every case here needs it: they
-/// are written against spineboy's own numbers on purpose, because a loader
-/// that half worked would produce plausible ones on invented data.
+/// Skips the case when the fixture is absent - or fails it, under
+/// NX_REQUIRE_MODULE_FIXTURES, so a build that was meant to test spineboy and
+/// found nothing says so. Every case here needs it: they are written against
+/// spineboy's own numbers on purpose, because a loader that half worked would
+/// produce plausible ones on invented data.
+#if NX_REQUIRE_MODULE_FIXTURES
+#define NX_REQUIRE_FIXTURE()                                                   \
+  do {                                                                         \
+    if (!::nxm::spine_test::have_fixture())                                    \
+      FAIL("spineboy fixture absent but NX_REQUIRE_MODULE_FIXTURES is set");   \
+  } while (false)
+#else
 #define NX_REQUIRE_FIXTURE()                                                   \
   do {                                                                         \
     if (!::nxm::spine_test::have_fixture())                                    \
       SKIP("no spineboy; set NX_SPINE_FIXTURE_DIR to a Spine export");         \
   } while (false)
+#endif
