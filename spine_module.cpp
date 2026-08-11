@@ -18,11 +18,18 @@ namespace {
 
 constexpr nx::string_view UPDATE_SYSTEM = "spine.update";
 constexpr nx::string_view EMIT_SYSTEM = "spine.emit";
+constexpr ModuleService PROVIDED_SERVICES[] = {
+    {.id = "spine.animation", .version = {1, 0, 0}},
+};
 
 class SpineModule final : public Module {
 public:
-  [[nodiscard]] nx::string_view name() const noexcept override {
-    return "spine";
+  [[nodiscard]] ModuleDescriptor descriptor() const noexcept override {
+    ModuleDescriptor out{};
+    out.id = "spine";
+    out.version = {1, 0, 0};
+    out.provided_services = PROVIDED_SERVICES;
+    return out;
   }
 
   bool on_register(Engine &engine) override {
