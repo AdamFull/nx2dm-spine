@@ -55,20 +55,26 @@ public:
   /// rather than by a component: the atlas needs its pages resolved to bindless
   /// texture words, and only something holding an Engine can do that.
   void add_skeleton(nxe::Engine &engine) {
+    // The atlas is a -pma export: its colour is already multiplied by alpha,
+    // which decides how it is decoded as well as how it blends.
     const nxe::rhi::TextureHandle page =
-        engine.load_texture("/spine/spineboy-pma.png");
+        engine.load_texture("/spine/spineboy-pma.png", true);
     if (!page.valid()) {
       nx::logw("{{project}}: no skeleton art under /spine");
       return;
     }
-    const u32 packed = pack_texture(engine.device().texture_index(page),
-                                    engine.samplers().index({}));
+    const u32 index = engine.device().texture_index(page);
+    const u32 sampler = engine.samplers().index({});
 
     nx::string error;
     if (!nxe::spine2d::load_skeleton(
             "/spine/spineboy-pro.skel", "/spine/spineboy-pma.atlas",
+            // The page says whether it is premultiplied, and the word carries
+            // it to the shader that samples it.
             nxe::spine2d::TextureResolver(
-                [packed](nx::string_view, bool) { return packed; }),
+                [index, sampler](nx::string_view, const bool premultiplied) {
+                  return pack_texture(index, sampler, premultiplied);
+                }),
             m_skeleton, error)) {
       nx::logw("{{project}}: {}", error);
       return;
