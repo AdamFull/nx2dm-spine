@@ -1,0 +1,32 @@
+{
+  "services": [
+    {
+      "name": "spine_play",
+      "signature": "(number,string,boolean,number)->(boolean)"
+    },
+    {
+      "name": "spine_queue",
+      "signature": "(number,string,boolean,number,number)->(boolean)"
+    },
+    {
+      "name": "spine_stop",
+      "signature": "(number,number)->(boolean)"
+    },
+    {
+      "name": "spine_skin",
+      "signature": "(number,string)->(boolean)"
+    },
+    {
+      "name": "spine_finished",
+      "signature": "(number,number)->(boolean)"
+    },
+    {
+      "name": "spine_visible",
+      "signature": "(number,boolean)->(boolean)"
+    },
+    {
+      "name": "spine_speed",
+      "signature": "(number,number)->(boolean)"
+    }
+  ]
+}
