@@ -21,7 +21,7 @@ namespace {
 constexpr nx::string_view UPDATE_SYSTEM = "spine.update";
 constexpr nx::string_view EMIT_SYSTEM = "spine.emit";
 constexpr ModuleService PROVIDED_SERVICES[] = {
-    {.id = "spine.animation", .version = {1, 0, 0}},
+    {.id = SERVICE, .version = {1, 0, 0}},
 };
 
 class SpineModule final : public Module {
@@ -35,6 +35,9 @@ public:
   }
 
   bool on_register(ModuleContext &ctx) override {
+    if (!ctx.services().provide(SERVICE, PROVIDED_SERVICES[0].version,
+                                m_system))
+      return false;
     SpineSystem::register_components(ctx.scene().registry());
     return true;
   }

@@ -10,6 +10,8 @@
 
 namespace nxe::spine2d {
 
+inline constexpr nx::string_view SERVICE = "spine.animation";
+
 /// The runtime owned by the enabled Spine module instance.
 [[nodiscard]] SpineSystem &system();
 
