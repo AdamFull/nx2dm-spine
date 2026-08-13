@@ -15,9 +15,11 @@
 
 namespace {
 
-class {{Project}}Game final : public nxe::IGame {
+/// Holds the loaded skeleton the scene's component points at, so it keeps a
+/// struct; NX_IMPLEMENT_GAME_OBJECT binds its methods to the engine's hooks.
+class {{Project}}Game {
 public:
-  void configure(nxe::EngineConfig &config) override {
+  void configure(nxe::EngineConfig &config) {
     config.app.name = "{{project}}";
     config.app.window.title = "{{project}}";
     config.app.window.width = 1280;
@@ -34,7 +36,7 @@ public:
     config.audio_bank = {};
   }
 
-  bool on_create(nxe::Engine &engine) override {
+  bool on_create(nxe::Engine &engine) {
     // A camera, because a scene with none draws nothing and says nothing about
     // why. ortho_height is how much of the world fits top to bottom.
     const nxe::scene::Entity camera = engine.scene().create_node("camera");
@@ -99,4 +101,4 @@ private:
 
 } // namespace
 
-NX_IMPLEMENT_GAME({{Project}}Game)
+NX_IMPLEMENT_GAME_OBJECT({{Project}}Game)

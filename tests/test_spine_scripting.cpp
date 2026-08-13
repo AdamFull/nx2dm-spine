@@ -23,7 +23,7 @@ using namespace nxe::spine2d;
 namespace script = nxe::script;
 
 struct Exposed {
-  nxe::Engine engine{nullptr};
+  nxe::Engine engine{nxe::Game{}};
   nxe::ModuleContext ctx{engine};
   script::Host host;
   nx::vector<script::Host::ServiceInfo> services;
@@ -84,7 +84,7 @@ TEST_CASE("spine scripting: the module hands them over on its own") {
       found = module;
   REQUIRE(found != nullptr);
 
-  nxe::Engine engine{nullptr};
+  nxe::Engine engine{nxe::Game{}};
   nxe::ModuleContext ctx{engine};
   script::Host host;
   found->on_expose_scripts(host, ctx);
