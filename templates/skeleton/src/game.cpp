@@ -90,9 +90,12 @@ public:
     // scaling down by about the height of a character in pixels.
     engine.scene().set_scale(e, {0.004f, 0.004f});
     engine.scene().set_position(e, {0.f, -2.f});
-    nxe::spine2d::system()
-        .attach(engine.scene().registry(), e, m_skeleton)
-        .play("idle");
+    nxe::spine2d::SpineSystem *const spine = nxe::spine2d::system(engine);
+    if (spine == nullptr) {
+      nx::loge("{{project}}: Spine service is unavailable");
+      return;
+    }
+    spine->attach(engine.scene().registry(), e, m_skeleton).play("idle");
   }
 
 private:

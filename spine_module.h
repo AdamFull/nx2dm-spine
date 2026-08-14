@@ -8,11 +8,14 @@
 
 #include "spine/spine_system.h"
 
+namespace nxe {
+class Engine;
+}
+
 namespace nxe::spine2d {
 
 inline constexpr nx::string_view SERVICE = "spine.animation";
 
-/// The runtime owned by the enabled Spine module instance.
-[[nodiscard]] SpineSystem &system();
+[[nodiscard]] SpineSystem *system(Engine &engine) noexcept;
 
 } // namespace nxe::spine2d

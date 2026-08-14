@@ -13,8 +13,6 @@
 
 #include "core/foundation/diagnostics/log.h"
 
-extern "C" nxe::Module *nx_module_spine();
-
 namespace nxe::spine2d {
 namespace {
 
@@ -79,16 +77,14 @@ public:
     m_system.set_threads(nullptr);
   }
 
-  [[nodiscard]] SpineSystem &system() noexcept { return m_system; }
-
 private:
   SpineSystem m_system;
 };
 
 } // namespace
 
-SpineSystem &system() {
-  return static_cast<SpineModule *>(nx_module_spine())->system();
+SpineSystem *system(Engine &engine) noexcept {
+  return engine.services().find<SpineSystem>(SERVICE);
 }
 
 } // namespace nxe::spine2d
