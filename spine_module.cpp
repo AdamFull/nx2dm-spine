@@ -36,8 +36,8 @@ public:
 
   bool on_register(ModuleContext &ctx) override {
     m_system.set_threads(&ctx.threads());
-    if (!ctx.services().provide(SERVICE, PROVIDED_SERVICES[0].version,
-                                m_system)) {
+    if (!ctx.service_registrar().provide(SERVICE, PROVIDED_SERVICES[0].version,
+                                         m_system)) {
       m_system.set_threads(nullptr);
       return false;
     }
