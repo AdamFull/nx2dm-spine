@@ -35,9 +35,12 @@ public:
   }
 
   bool on_register(ModuleContext &ctx) override {
+    m_system.set_threads(&ctx.threads());
     if (!ctx.services().provide(SERVICE, PROVIDED_SERVICES[0].version,
-                                m_system))
+                                m_system)) {
+      m_system.set_threads(nullptr);
       return false;
+    }
     SpineSystem::register_components(ctx.scene().registry());
     return true;
   }
@@ -47,12 +50,10 @@ public:
   }
 
   bool on_attach(ModuleContext &ctx) override {
-    m_system.set_threads(&ctx.threads());
-
-    ctx.schedule().define(
-        UPDATE_SYSTEM, sys::SystemFn([this, &ctx](const sys::Context &c) {
-          (void)m_system.update(ctx.scene().registry(), c.dt);
-        }));
+    ctx.schedule().define(UPDATE_SYSTEM,
+                          sys::SystemFn([this, &ctx](const sys::Context &c) {
+                            (void)m_system.update(ctx.scene().registry(), c.dt);
+                          }));
     ctx.schedule().add(sys::Stage::Update, UPDATE_SYSTEM);
 
     ctx.schedule().define(
@@ -73,6 +74,10 @@ public:
   }
 
   void on_detach(ModuleContext &) override { m_system.set_threads(nullptr); }
+
+  void on_unregister(ModuleContext &) override {
+    m_system.set_threads(nullptr);
+  }
 
   [[nodiscard]] SpineSystem &system() noexcept { return m_system; }
 
