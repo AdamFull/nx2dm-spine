@@ -1,6 +1,7 @@
 #include "spine/spine_system.h"
 
 #include "core/foundation/diagnostics/profiler.h"
+#include "core/rendering/render2d/material_system.h"
 #include "core/rendering/render2d/scene_renderer.h"
 #include "spine/spine_assets.h"
 
@@ -137,6 +138,14 @@ usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,
         // Rendering metadata comes from the same retained asset version that
         // constructed the pose, never from a potentially replaced component.
         const bool premultiplied = instance.premultiplied();
+        // A custom material applies to the whole skeleton: its pipeline batch
+        // and parameter offset ride every draw, overriding the per-part blend.
+        u32 batch = 0u;
+        u32 material_offset = 0u;
+        if (view.materials != nullptr && component.material != 0u) {
+          batch = view.materials->batch_of(component.material);
+          material_offset = view.materials->offset_of(component.material);
+        }
         const u32 layer = nx::cast<u32>(component.layer + 2048) & 0xFFFu;
         const u32 key = nx_make_sort_key(layer,
                                          r2d::quantize_depth(node.world[2][1],
@@ -178,6 +187,8 @@ usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,
           draw.sort_key = key;
           draw.camera = view.camera;
           draw.blend = blend_of(command->blendMode, premultiplied);
+          draw.batch = batch;
+          draw.material = material_offset;
           ++appended;
         }
       });

@@ -14,6 +14,7 @@
 
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/vfs/vfs.h"
+#include "core/rendering/render2d/material_system.h"
 #include "core/rendering/render2d/scene_renderer.h"
 #include "spine/spine_assets.h"
 #include "spine/spine_system.h"
@@ -123,6 +124,47 @@ TEST_CASE("spine: a posed skeleton becomes mesh draws") {
     CHECK(nx::cast<usize>(draw.vertex_offset) + highest <
           channel.vertices.size());
   }
+}
+
+TEST_CASE("spine: a component's material rides every draw") {
+  const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  scene::registry_t registry = bare_registry();
+  spine2d::SpineSystem system;
+  const scene::Entity e = place(registry, system, loaded.asset, {0.f, 0.f});
+  system.update(registry, 0.1f);
+
+  // A custom mesh material, registered past the built-ins.
+  r2d::MaterialSystem materials;
+  materials.init();
+  const r2d::MaterialInstanceId mat = materials.load_json(
+      R"({"domain": "mesh2d", "shader": "mesh_grayscale", "blend": "alpha"})");
+  REQUIRE(mat != materials.plain());
+  registry.get<spine2d::SpineComponent>(e).material = mat;
+
+  spine2d::SpineView view;
+  view.materials = &materials;
+  r2d::MeshChannel channel;
+  REQUIRE(system.emit(registry, channel, view) > 0u);
+
+  // The whole skeleton draws with one custom material, so every draw carries its
+  // batch and parameter offset.
+  const u32 batch = materials.batch_of(mat);
+  const u32 offset = materials.offset_of(mat);
+  REQUIRE(batch != 0u); // a real pipeline, not the built-in path's batch 0
+  for (const r2d::MeshDraw &draw : channel.draws) {
+    CHECK(draw.batch == batch);
+    CHECK(draw.material == offset);
+  }
+
+  // Without a material system the same component stays on the built-in path: the
+  // resolution is gated on the view, not on the component alone.
+  r2d::MeshChannel plain;
+  REQUIRE(system.emit(registry, plain, {}) > 0u);
+  for (const r2d::MeshDraw &draw : plain.draws)
+    CHECK(draw.batch == 0u);
 }
 
 TEST_CASE("spine: every draw of one skeleton carries the same key") {

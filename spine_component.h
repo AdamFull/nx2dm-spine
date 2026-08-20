@@ -47,6 +47,7 @@ struct SpineComponent {
   f32 time_scale = 1.f;
   i32 layer = 0;
   bool visible = true;
+  u32 material = 0;
 };
 
 namespace detail {

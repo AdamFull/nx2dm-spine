@@ -12,12 +12,17 @@ namespace spine {
 class SkeletonRenderer;
 }
 
+namespace nxe::r2d {
+class MaterialSystem;
+}
+
 namespace nxe::spine2d {
 
 struct SpineView {
   u32 camera = 0;
   f32 depth_min = -1024.f;
   f32 depth_max = 1024.f;
+  const r2d::MaterialSystem *materials = nullptr;
 };
 
 class SpineSystem {
