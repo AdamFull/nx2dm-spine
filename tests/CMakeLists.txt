@@ -7,6 +7,10 @@ nx_module_registry(nx_spine_tests)
 target_link_libraries(nx_spine_tests
         PRIVATE nx::test nx::foundation nx::spine nx::rhi nx::stb
         nx::engine nx::compile_options)
+# This module-heavy image exceeds an incremental-linker edge on MSVC: link.exe
+# can leave its import table zeroed, so the process crashes before main().
+target_link_options(nx_spine_tests PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/INCREMENTAL:NO>)
 
 set(NX_SPINE_FIXTURE_DIR "" CACHE PATH
         "Directory holding spine/spineboy/export/; empty stages the bundled spineboy")
