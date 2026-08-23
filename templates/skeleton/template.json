@@ -1,4 +1,5 @@
 {
   "description": "A Spine skeleton, with its animations chosen from Lua",
-  "detail": "Loads spineboy, attaches it to a node, and queues animations through the spine_* services. Ships Esoteric Software's own example export."
+  "detail": "Loads spineboy, attaches it to a node, and queues animations through the spine_* services. Ships Esoteric Software's own example export.",
+  "modules": ["spine"]
 }
