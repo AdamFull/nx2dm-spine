@@ -1,16 +1,3 @@
-/**
- * @file test_spine_render.cpp
- * @brief spineboy through the real mesh pipeline, and off the GPU again.
- *
- * Everything else here proves the geometry is right in memory. This one puts
- * it through the shader the engine draws with and reads the pixels back, which
- * is the only claim arithmetic cannot make: that a skeleton reaches the screen,
- * and that animating it changes what is on it.
- *
- * Pages resolve to no texture, so the fragment path returns white and what
- * lands is the vertex colour. Deliberate: decoding a PNG is the engine's job
- * and this target links no engine.
- */
 
 #include "framework/nxtest.h"
 
@@ -40,9 +27,6 @@ namespace rhi = nxe::rhi;
 
 constexpr u32 TARGET = 256;
 
-/// What the mesh pass pushes, spelled here rather than included: nx_engine owns
-/// MeshPushBlock and this target links no engine. material_words left 0 keeps
-/// the shader off the material buffer this test binds none of.
 struct MeshPush {
   u64 cameras = 0;
   u64 vertices = 0;
@@ -82,7 +66,6 @@ struct TestDevice {
   });
 }
 
-/// How many pixels the clear colour did not survive.
 [[nodiscard]] usize lit(const u8 *const pixels) noexcept {
   usize n = 0;
   for (usize i = 0; i < nx::cast<usize>(TARGET) * TARGET; ++i)
@@ -92,8 +75,6 @@ struct TestDevice {
   return n;
 }
 
-/// Writes the frame out when NX_SPINE_DUMP names a directory, so "what did it
-/// actually draw" is answerable without a screen. Off in every ordinary run.
 void dump(const u8 *const pixels, const u32 pass) {
   const char *const dir = std::getenv("NX_SPINE_DUMP");
   if (dir == nullptr)
@@ -112,7 +93,7 @@ void dump(const u8 *const pixels, const u32 pass) {
   return n;
 }
 
-} // namespace
+}
 
 TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
   NX_REQUIRE_FIXTURE();
@@ -143,8 +124,6 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
 
   const scene::Entity e = registry.create();
   scene::WorldTransform2D &node = registry.emplace<scene::WorldTransform2D>(e);
-  // spineboy is 686 units tall and stands on his own origin; this puts the
-  // whole of him inside the unit square the camera below covers.
   node.world[0][0] = 1.f / 900.f;
   node.world[1][1] = 1.f / 900.f;
   node.world[2][0] = 0.5f;
@@ -170,7 +149,6 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
   });
   REQUIRE(pipeline.valid());
 
-  // World [0,1]x[0,1] onto the whole target, as the sprite draw test does.
   GpuCamera2D camera = {};
   glm::mat4 proj(1.f);
   proj[0][0] = 2.f;
@@ -197,8 +175,6 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
 
   nx::vector<u8> frames[2];
   for (u32 pass = 0; pass < 2; ++pass) {
-    // Half a second apart: far enough into the walk cycle that a leg has
-    // swung, and the same skeleton either way.
     system.update(registry, pass == 0 ? 0.f : 0.5f);
     r2d::MeshChannel channel;
     REQUIRE(system.emit(registry, channel, {}) > 0u);
@@ -259,14 +235,10 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
     device.destroy_buffer(vertices);
   }
 
-  // A character, not a stray triangle and not a full screen: spineboy standing
-  // in a square this size covers a decent slice of it and nowhere near all.
   const usize covered = lit(frames[0].data());
   CHECK(covered > (TARGET * TARGET) / 20);
   CHECK(covered < (TARGET * TARGET * 4) / 5);
 
-  // And half a second of walking moves enough of them that no fixed pose could
-  // have produced both frames.
   CHECK(differing(frames[0].data(), frames[1].data()) > covered / 10);
 
   device.destroy_buffer(cameras);

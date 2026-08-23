@@ -15,7 +15,6 @@
 namespace nxe::spine2d {
 namespace {
 
-/// spine::String needs a terminated buffer and a string_view has none.
 [[nodiscard]] ::spine::String owned(const nx::string_view text) {
   const nx::string copy(text);
   return ::spine::String(copy.c_str());
@@ -49,7 +48,7 @@ namespace {
   return false;
 }
 
-} // namespace
+}
 
 namespace detail {
 
@@ -101,19 +100,15 @@ void SpineEventSinkDeleter::operator()(
   nx::release(sink);
 }
 
-} // namespace detail
+}
 
 SpineInstance::SpineInstance(const SkeletonAsset &asset,
                              const scene::Entity owner)
     : m_asset(asset), m_entity(owner) {
   if (!asset.valid())
     return;
-  // These are SpineObjects: their class-specific operator new routes through
-  // VfsExtension and therefore nx::mem_alloc, with the zero-fill Spine needs.
   m_skeleton.reset(new ::spine::Skeleton(*asset.data()));
   m_animation.reset(new ::spine::AnimationState(*asset.mixes()));
-  // SpineEventSink is ours, not a SpineObject, so it uses the engine allocator.
-  // Its out-of-line deleter lets the public header keep the sink opaque.
   m_sink.reset(nx::allocate<detail::SpineEventSink>(owner));
   if (m_sink == nullptr) {
     reset();
@@ -207,4 +202,4 @@ void SpineInstance::clear_events() noexcept {
     m_sink->events.clear();
 }
 
-} // namespace nxe::spine2d
+}

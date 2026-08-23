@@ -1,8 +1,3 @@
-/**
- * @file spine_module.cpp
- * @brief What tells an Engine about Spine, and the only file here that knows
- * an Engine exists.
- */
 
 #include "spine/spine_module.h"
 
@@ -82,12 +77,12 @@ private:
   SpineSystem m_system;
 };
 
-} // namespace
+}
 
 SpineSystem *system(Engine &engine) noexcept {
   return engine.services().find<SpineSystem>(SERVICE);
 }
 
-} // namespace nxe::spine2d
+}
 
 NX_DECLARE_MODULE(spine, nxe::spine2d::SpineModule)

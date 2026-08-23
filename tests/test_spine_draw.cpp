@@ -1,12 +1,3 @@
-/**
- * @file test_spine_draw.cpp
- * @brief Posing spineboy and turning him into mesh draws, with no GPU.
- *
- * Everything here runs against the real fixture rather than a hand-built
- * skeleton: the interesting failures - a pose that never moves, a transform
- * that never applies, premultiplication read from the wrong atlas - all look
- * fine on geometry someone made up.
- */
 
 #include "framework/nxtest.h"
 
@@ -31,7 +22,6 @@ namespace spine2d = nxe::spine2d;
 namespace scene = nxe::scene;
 namespace r2d = nxe::r2d;
 
-/// The asset tree mounted, with one skeleton loaded out of it.
 struct Loaded {
   explicit Loaded(const nx::string_view atlas = ATLAS_PMA,
                   const u32 texture = nx::cast<u32>(pack_texture(7, 1))) {
@@ -63,7 +53,6 @@ struct Loaded {
   bool m_ok = false;
 };
 
-/// A registry that has been told what a node and a skeleton are.
 [[nodiscard]] scene::registry_t bare_registry() {
   scene::registry_t registry;
   registry.register_component<scene::WorldTransform2D>(
@@ -72,7 +61,6 @@ struct Loaded {
   return registry;
 }
 
-/// A node at @p at carrying a skeleton, already playing @p animation.
 scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
                     const spine2d::SkeletonAsset &asset, const glm::vec2 at,
                     const nx::string_view animation = "walk") {
@@ -93,7 +81,7 @@ scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
              : sum / nx::cast<f32>(channel.vertices.size());
 }
 
-} // namespace
+}
 
 TEST_CASE("spine: a posed skeleton becomes mesh draws") {
   const Loaded loaded;
@@ -112,8 +100,6 @@ TEST_CASE("spine: a posed skeleton becomes mesh draws") {
   CHECK(channel.draws.size() == draws);
   CHECK(!channel.vertices.empty());
 
-  // Triangles, and every index inside the draw's own vertex block: a mesh
-  // that indexes past its vertices reads whatever the next skeleton wrote.
   for (const r2d::MeshDraw &draw : channel.draws) {
     CHECK(draw.index_count % 3u == 0u);
     const usize end = nx::cast<usize>(draw.first_index) + draw.index_count;
@@ -136,7 +122,6 @@ TEST_CASE("spine: a component's material rides every draw") {
   const scene::Entity e = place(registry, system, loaded.asset, {0.f, 0.f});
   system.update(registry, 0.1f);
 
-  // A custom mesh material, registered past the built-ins.
   r2d::MaterialSystem materials;
   materials.init();
   const r2d::MaterialInstanceId mat = materials.load_json(
@@ -149,18 +134,14 @@ TEST_CASE("spine: a component's material rides every draw") {
   r2d::MeshChannel channel;
   REQUIRE(system.emit(registry, channel, view) > 0u);
 
-  // The whole skeleton draws with one custom material, so every draw carries its
-  // batch and parameter offset.
   const u32 batch = materials.batch_of(mat);
   const u32 offset = materials.offset_of(mat);
-  REQUIRE(batch != 0u); // a real pipeline, not the built-in path's batch 0
+  REQUIRE(batch != 0u);
   for (const r2d::MeshDraw &draw : channel.draws) {
     CHECK(draw.batch == batch);
     CHECK(draw.material == offset);
   }
 
-  // Without a material system the same component stays on the built-in path: the
-  // resolution is gated on the view, not on the component alone.
   r2d::MeshChannel plain;
   REQUIRE(system.emit(registry, plain, {}) > 0u);
   for (const r2d::MeshDraw &draw : plain.draws)
@@ -177,10 +158,6 @@ TEST_CASE("spine: every draw of one skeleton carries the same key") {
   const scene::Entity e = place(registry, system, loaded.asset, {0.f, 3.f});
   registry.get<spine2d::SpineComponent>(e).layer = 5;
 
-  // spineboy is one page and one colour, so the runtime batches him into a
-  // single command. Give a slot in the middle its own blend mode and the
-  // batch has to split - which is the only way this case sees more than one
-  // draw, and the only way it can say anything about their order.
   loaded.asset.data()->getSlots()[26]->setBlendMode(
       ::spine::BlendMode_Additive);
   system.update(registry, 0.1f);
@@ -189,9 +166,6 @@ TEST_CASE("spine: every draw of one skeleton carries the same key") {
   r2d::MeshChannel channel;
   REQUIRE(system.emit(registry, channel, view) > 1u);
 
-  // One key for the whole character. Slots have to draw in their own order,
-  // and the mesh sort is stable only within a run of equal keys - a key that
-  // varied per slot would let the sort reorder a face behind its head.
   const u32 expected = nx_make_sort_key(
       nx::cast<u32>(5 + 2048),
       r2d::quantize_depth(3.f, view.depth_min, view.depth_max), 0u);
@@ -201,8 +175,6 @@ TEST_CASE("spine: every draw of one skeleton carries the same key") {
     CHECK(draw.texture == pack_texture(7, 1));
   }
 
-  // And the split really is a blend split: the middle run draws additively
-  // over the ones either side of it.
   usize additive = 0;
   for (const r2d::MeshDraw &draw : channel.draws)
     if (draw.blend == r2d::MeshBlend::AdditivePremultiplied)
@@ -217,7 +189,6 @@ TEST_CASE("spine: two skeletons sort by layer, then by depth") {
 
   scene::registry_t registry = bare_registry();
   spine2d::SpineSystem system;
-  // Behind on the y axis but on a higher layer, so layer has to win.
   const scene::Entity front = place(registry, system, loaded.asset, {0.f, 8.f});
   place(registry, system, loaded.asset, {0.f, 0.f});
   registry.get<spine2d::SpineComponent>(front).layer = 1;
@@ -248,8 +219,6 @@ TEST_CASE("spine: the node's transform is what places the skeleton") {
   r2d::MeshChannel at_origin;
   REQUIRE(system.emit(registry, at_origin, {}) > 0u);
 
-  // Move the node without touching the pose. Skeleton space is the node's
-  // local space, so every vertex has to move with it and by exactly as much.
   registry.get<scene::WorldTransform2D>(e).world[2][0] = 100.f;
   r2d::MeshChannel moved;
   REQUIRE(system.emit(registry, moved, {}) > 0u);
@@ -261,7 +230,6 @@ TEST_CASE("spine: the node's transform is what places the skeleton") {
           nxtest::Approx(at_origin.vertices[i].position.y));
   }
 
-  // And scale, which a transform applied as a translation alone would miss.
   registry.get<scene::WorldTransform2D>(e).world[2][0] = 0.f;
   registry.get<scene::WorldTransform2D>(e).world[0][0] = 0.5f;
   registry.get<scene::WorldTransform2D>(e).world[1][1] = 0.5f;
@@ -283,9 +251,6 @@ TEST_CASE("spine: an animation actually moves the pose") {
   r2d::MeshChannel first;
   REQUIRE(system.emit(registry, first, {}) > 0u);
 
-  // Half a second into a walk cycle nothing is where it was. An update that
-  // never applied the state would leave the setup pose behind, vertex for
-  // vertex.
   system.update(registry, 0.5f);
   r2d::MeshChannel later;
   REQUIRE(system.emit(registry, later, {}) > 0u);
@@ -350,8 +315,6 @@ TEST_CASE("spine: a premultiplied atlas picks a different blend and colour") {
     registry.clear();
   }
 
-  // Same skeleton, same tint: only which atlas it was paired with differs, and
-  // getting this wrong haloes every edge on screen.
   CHECK(premultiplied.draws[0].blend == r2d::MeshBlend::NormalPremultiplied);
   CHECK(straight.draws[0].blend == r2d::MeshBlend::Normal);
 
@@ -371,8 +334,6 @@ TEST_CASE("spine: a page nobody could back draws untextured") {
 
   spine2d::SkeletonAsset asset;
   nx::string error;
-  // No resolver at all, which is the loader's own fallback rather than an
-  // answer it was given.
   REQUIRE(spine2d::load_skeleton(SKELETON, ATLAS_PMA, {}, asset, error));
 
   scene::registry_t registry = bare_registry();
@@ -382,9 +343,6 @@ TEST_CASE("spine: a page nobody could back draws untextured") {
 
   r2d::MeshChannel channel;
   REQUIRE(system.emit(registry, channel, {}) > 0u);
-  // The shader tests the high half for kTextureNone. A bare NX_TEXTURE_NONE
-  // in the low half reads as texture zero, which samples whatever happens to
-  // be in the first bindless slot.
   for (const r2d::MeshDraw &draw : channel.draws)
     CHECK((draw.texture >> 16) == NX_TEXTURE_NONE);
 
@@ -408,8 +366,6 @@ TEST_CASE("spine: an invisible character emits nothing") {
   CHECK(system.emit(registry, channel, {}) == 0u);
   CHECK(channel.empty());
 
-  // Still posed, though: hiding a character must not stop its animation, or
-  // it reappears wherever it was hidden.
   CHECK(system.update(registry, 0.1f) == 1u);
 }
 
@@ -420,7 +376,6 @@ TEST_CASE("spine: a component that arrived without a pose gets one") {
 
   scene::registry_t registry = bare_registry();
   spine2d::SpineSystem system;
-  // What loading a .nxscene leaves behind: authoring data and no runtime.
   const scene::Entity e = registry.create();
   registry.emplace<scene::WorldTransform2D>(e);
   registry.emplace<spine2d::SpineComponent>(e).asset = loaded.asset;
@@ -444,8 +399,6 @@ TEST_CASE("spine: a component and pose retain their asset version") {
   const scene::Entity e = place(registry, system, loaded.asset, {0.f, 0.f});
   REQUIRE(registry.get<spine2d::SpineInstance>(e).play("walk"));
 
-  // The game-side handle may be reloaded or destroyed while this entity is
-  // alive. Both ECS records retain the immutable version they actually use.
   loaded.asset = {};
   CHECK(registry.get<spine2d::SpineComponent>(e).asset.valid());
   CHECK(system.update(registry, 0.1f) == 1u);
@@ -524,8 +477,6 @@ TEST_CASE("spine: an animation the skeleton does not have is refused") {
   registry.emplace<scene::WorldTransform2D>(e);
   spine2d::SpineInstance &instance = system.attach(registry, e, loaded.asset);
 
-  // spine-cpp asserts on a name it cannot find, so a game reading names out of
-  // data would take the process down with it.
   CHECK_FALSE(instance.play("no-such-animation"));
   CHECK_FALSE(instance.queue("no-such-animation"));
   CHECK(instance.play("walk"));
@@ -559,8 +510,6 @@ TEST_CASE("spine: many skeletons pose the same way across a pool") {
   REQUIRE(serial.emit(serial_registry, one, {}) > 0u);
   REQUIRE(pooled.emit(pooled_registry, many, {}) > 0u);
 
-  // Posing across workers must produce the same skeleton, vertex for vertex:
-  // the pool is a way to spend less time, not a different result.
   REQUIRE(many.vertices.size() == one.vertices.size());
   for (usize i = 0; i < many.vertices.size(); ++i)
     CHECK(many.vertices[i].position == one.vertices[i].position);
@@ -579,11 +528,6 @@ TEST_CASE("spine: a skeleton stands up from its node, not down") {
   r2d::MeshChannel channel;
   REQUIRE(system.emit(registry, channel, {}) > 0u);
 
-  // spineboy's origin is between his feet and he is 686 units tall, so almost
-  // all of him is above the node. spine-cpp defaults Bone::yDown to true,
-  // which negates the skeleton's y scale and hands back exactly this shape
-  // mirrored - and every other case here compares one pose against another,
-  // so all of them pass just as happily with the character on his head.
   glm::vec2 lo(1e30f);
   glm::vec2 hi(-1e30f);
   for (const r2d::MeshVertex &v : channel.vertices) {
@@ -592,8 +536,6 @@ TEST_CASE("spine: a skeleton stands up from its node, not down") {
   }
   CHECK(hi.y > 500.f);
   CHECK(lo.y > -100.f);
-  // Wider than nothing but far taller than wide, which is what says the box is
-  // a person rather than an axis mix-up.
   CHECK(hi.x - lo.x > 200.f);
   CHECK(hi.y - lo.y > hi.x - lo.x);
 }

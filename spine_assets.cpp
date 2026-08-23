@@ -18,8 +18,6 @@
 namespace nxe::spine2d {
 namespace {
 
-/// Hands each page's image to the caller's resolver and keeps the answer in
-/// AtlasPage::texture, which is where every attachment finds it later.
 class ResolvingLoader final : public ::spine::TextureLoader {
 public:
   explicit ResolvingLoader(TextureResolver resolve)
@@ -30,8 +28,6 @@ public:
     const nx::string_view where(path.buffer(), nx::cast<usize>(path.length()));
     const u32 packed = m_resolve ? m_resolve(where, page.pma)
                                  : pack_texture(NX_TEXTURE_NONE, 0);
-    // A void* holding an integer rather than a pointer: the field exists for
-    // whatever a host wants to associate, and ours is a bindless word.
     page.texture = reinterpret_cast<void *>(static_cast<uintptr_t>(packed));
     if ((packed >> 16) == NX_TEXTURE_NONE)
       nx::logw("spine: no texture for '{}'; its slots will draw untextured",
@@ -39,8 +35,6 @@ public:
   }
 
   void unload(void *) override {
-    // The atlas owns no texture: the registry that resolved it does, and it
-    // outlives every skeleton drawn from it.
   }
 
   [[nodiscard]] bool premultiplied() const noexcept { return m_premultiplied; }
@@ -54,7 +48,7 @@ private:
   return {text.buffer(), nx::cast<usize>(text.length())};
 }
 
-} // namespace
+}
 
 namespace detail {
 
@@ -76,7 +70,7 @@ public:
   bool premultiplied = false;
 };
 
-} // namespace detail
+}
 
 bool SkeletonAsset::valid() const noexcept {
   return m_version != nullptr && m_version->data != nullptr;
@@ -135,8 +129,6 @@ bool load_skeleton(const nx::string_view skeleton_path,
     return false;
   }
 
-  // Each page's image is named relative to the atlas, so the runtime needs the
-  // directory the atlas came from rather than the atlas itself.
   const nx::string dir(nx::fs::path::parent_path(atlas_path));
 
   nx::shared_ptr<detail::SkeletonAssetData> loaded =
@@ -192,4 +184,4 @@ bool load_skeleton(const nx::string_view skeleton_path,
   return true;
 }
 
-} // namespace nxe::spine2d
+}

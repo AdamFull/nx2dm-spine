@@ -1,10 +1,5 @@
 #pragma once
 
-/**
- * @file spine_assets.h
- * @brief A skeleton's shared data, loaded (namespace nxe::spine2d).
- */
-
 #include "core/foundation/core/callable.h"
 #include "core/foundation/core/foundation.h"
 #include "core/foundation/strings/utf8_string.h"
@@ -13,7 +8,7 @@ namespace spine {
 class Atlas;
 class SkeletonData;
 class AnimationStateData;
-} // namespace spine
+}
 
 namespace nxe::spine2d {
 
@@ -45,8 +40,6 @@ public:
 
   [[nodiscard]] bool premultiplied() const noexcept;
 
-  /// True only when both handles name the exact same loaded version. This is
-  /// a pointer comparison; it does not inspect or copy skeleton data.
   [[nodiscard]] bool same_version(const SkeletonAsset &other) const noexcept {
     return m_version == other.m_version;
   }
@@ -69,4 +62,4 @@ private:
                                  TextureResolver resolve, SkeletonAsset &out,
                                  nx::string &error);
 
-} // namespace nxe::spine2d
+}

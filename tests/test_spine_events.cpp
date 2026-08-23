@@ -1,11 +1,3 @@
-/**
- * @file test_spine_events.cpp
- * @brief What an animation reports, and what a clipping attachment removes.
- *
- * spineboy keys a "footstep" event twice in its walk cycle, which is the only
- * reason these cases can check a real name against a real time rather than
- * one this file made up.
- */
 
 #include "framework/nxtest.h"
 
@@ -84,7 +76,7 @@ scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
   return n;
 }
 
-} // namespace
+}
 
 TEST_CASE("spine: a keyed event arrives with its name and its time") {
   const Loaded loaded;
@@ -96,9 +88,6 @@ TEST_CASE("spine: a keyed event arrives with its name and its time") {
   const scene::Entity e = place(registry, system, loaded.asset);
   REQUIRE(registry.get<spine2d::SpineInstance>(e).play("walk"));
 
-  // walk keys footstep at 0 and at 0.5, so a whole cycle fires it twice and
-  // nothing else - a listener wired to the wrong track or the wrong state
-  // would report neither.
   system.update(registry, 0.9f);
 
   usize footsteps = 0;
@@ -128,7 +117,6 @@ TEST_CASE("spine: a track reports starting, completing and ending") {
   system.update(registry, 0.f);
   CHECK(count_of(system, spine2d::SpineEventKind::Started) == 1u);
 
-  // A loop completes without ending; the track is still running.
   system.update(registry, 2.f);
   CHECK(count_of(system, spine2d::SpineEventKind::Completed) >= 1u);
   CHECK(count_of(system, spine2d::SpineEventKind::Ended) == 0u);
@@ -151,8 +139,6 @@ TEST_CASE("spine: events are drained, not accumulated") {
   system.update(registry, 0.9f);
   REQUIRE(!system.events().empty());
 
-  // A frame in which nothing fires must report nothing, or a game reacting to
-  // a footstep would hear the same one every frame after it.
   system.update(registry, 0.f);
   CHECK(system.events().empty());
 }
@@ -174,8 +160,6 @@ TEST_CASE("spine: every skeleton's events name the skeleton that fired them") {
     entities.push_back(e);
   }
 
-  // Posed across workers, so every listener fires on a different thread than
-  // the one draining them.
   CHECK(system.update(registry, 0.9f) == COUNT);
 
   nx::vector<usize> per_entity(COUNT, 0u);
@@ -191,7 +175,6 @@ TEST_CASE("spine: every skeleton's events name the skeleton that fired them") {
 }
 
 TEST_CASE("spine: a clipping attachment removes what it covers") {
-  // Declared before the skeleton so it outlives the slot pointing at it.
   ::spine::ClippingAttachment clip(::spine::String("test-clip"));
   const Loaded loaded;
   NX_REQUIRE_FIXTURE();
@@ -207,9 +190,6 @@ TEST_CASE("spine: a clipping attachment removes what it covers") {
   REQUIRE(system.emit(registry, whole, {}) > 0u);
   REQUIRE(whole.indices.size() > 0u);
 
-  // A box in the far corner of the skeleton's own space, clipping from the
-  // first slot to the end of the draw order. spine-cpp's renderer owns the
-  // clipper, so nothing of ours runs here - this is what proves that.
   ::spine::Array<f32> vertices;
   const f32 box[] = {8000.f, 8000.f, 9000.f, 8000.f,
                      9000.f, 9000.f, 8000.f, 9000.f};
@@ -228,7 +208,6 @@ TEST_CASE("spine: a clipping attachment removes what it covers") {
   system.emit(registry, clipped, {});
   CHECK(clipped.indices.size() < whole.indices.size() / 2);
 
-  // Detached before the skeleton goes, so nothing holds the stack attachment.
   skeleton.getDrawOrder().getAppliedPose()[0]->getAppliedPose().setAttachment(
       nullptr);
 }

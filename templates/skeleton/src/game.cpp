@@ -1,7 +1,3 @@
-/**
- * @file game.cpp
- * @brief {{project}}.
- */
 
 #include "core/app/engine.h"
 #include "core/app/script_runtime.h"
@@ -15,8 +11,6 @@
 
 namespace {
 
-/// Holds the loaded skeleton the scene's component points at, so it keeps a
-/// struct; NX_IMPLEMENT_GAME_OBJECT binds its methods to the engine's hooks.
 class {{Project}}Game {
 public:
   void configure(nxe::EngineConfig &config) {
@@ -25,10 +19,6 @@ public:
     config.app.window.width = 1280;
     config.app.window.height = 720;
 
-    // Empty rather than the engine's default paths: those name files a project
-    // is expected to bring, and a scaffolded one has none yet. Each has a
-    // built-in fallback - no bindings, the dark style, default physics rules.
-    // Point them at your own once you have them.
     config.action_map = {};
     config.saved_bindings = {};
     config.ui_styles = {};
@@ -37,8 +27,6 @@ public:
   }
 
   bool on_create(nxe::Engine &engine) {
-    // A camera, because a scene with none draws nothing and says nothing about
-    // why. ortho_height is how much of the world fits top to bottom.
     const nxe::scene::Entity camera = engine.scene().create_node("camera");
     engine.scene().registry().emplace<nxe::scene::Camera2D>(
         camera, nxe::scene::Camera2D{.ortho_height = 6.f, .active = true});
@@ -56,12 +44,7 @@ public:
     return true;
   }
 
-  /// The skeleton. Unlike Live2D's, a Spine asset is loaded by the project
-  /// rather than by a component: the atlas needs its pages resolved to bindless
-  /// texture words, and only something holding an Engine can do that.
   void add_skeleton(nxe::Engine &engine) {
-    // The atlas is a -pma export: its colour is already multiplied by alpha,
-    // which decides how it is decoded as well as how it blends.
     const nxe::rhi::TextureHandle page =
         engine.load_texture("/spine/spineboy-pma.png");
     if (!page.valid()) {
@@ -74,8 +57,6 @@ public:
     nx::string error;
     if (!nxe::spine2d::load_skeleton(
             "/spine/spineboy-pro.skel", "/spine/spineboy-pma.atlas",
-            // The page says whether it is premultiplied, and the word carries
-            // it to the shader that samples it.
             nxe::spine2d::TextureResolver(
                 [index, sampler](nx::string_view, const bool premultiplied) {
                   return pack_texture(index, sampler, premultiplied);
@@ -86,8 +67,6 @@ public:
     }
 
     const nxe::scene::Entity e = engine.scene().create_node("skeleton");
-    // Spine authors in pixels; the scene is in units, so a skeleton wants
-    // scaling down by about the height of a character in pixels.
     engine.scene().set_scale(e, {0.004f, 0.004f});
     engine.scene().set_position(e, {0.f, -2.f});
     nxe::spine2d::SpineSystem *const spine = nxe::spine2d::system(engine);
@@ -102,6 +81,6 @@ private:
   nxe::spine2d::SkeletonAsset m_skeleton;
 };
 
-} // namespace
+}
 
 NX_IMPLEMENT_GAME_OBJECT({{Project}}Game)

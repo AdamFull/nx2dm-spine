@@ -45,7 +45,7 @@ namespace {
                        : r2d::MeshBlend::Normal;
 }
 
-} // namespace
+}
 
 SpineSystem::~SpineSystem() { delete m_renderer; }
 
@@ -135,11 +135,7 @@ usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,
         if (m_renderer == nullptr)
           m_renderer = new ::spine::SkeletonRenderer();
 
-        // Rendering metadata comes from the same retained asset version that
-        // constructed the pose, never from a potentially replaced component.
         const bool premultiplied = instance.premultiplied();
-        // A custom material applies to the whole skeleton: its pipeline batch
-        // and parameter offset ride every draw, overriding the per-part blend.
         u32 batch = 0u;
         u32 material_offset = 0u;
         if (view.materials != nullptr && component.material != 0u) {
@@ -196,4 +192,4 @@ usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,
   return appended;
 }
 
-} // namespace nxe::spine2d
+}

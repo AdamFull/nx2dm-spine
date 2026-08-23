@@ -1,10 +1,5 @@
 #pragma once
 
-/**
- * @file spine_system.h
- * @brief Posing a scene's skeletons and drawing them (namespace nxe::spine2d).
- */
-
 #include "core/foundation/threading/thread_pool.h"
 #include "spine/spine_component.h"
 
@@ -59,7 +54,6 @@ private:
   nx::thread_pool *m_threads = nullptr;
   ::spine::SkeletonRenderer *m_renderer = nullptr;
 
-  /// Reused between frames so a steady one allocates nothing.
   nx::vector<scene::Entity> m_pending;
   nx::vector<SpineInstance *> m_posed;
   nx::vector<const SpineComponent *> m_posed_data;
@@ -68,4 +62,4 @@ private:
   nx::vector<u32> m_indices;
 };
 
-} // namespace nxe::spine2d
+}

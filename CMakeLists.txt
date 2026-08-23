@@ -1,13 +1,3 @@
-# The Spine 2D runtime, as a module.
-#
-# Two targets, not one. nx_spine is the runtime itself and links no engine and
-# no RHI, so every loading and posing case runs headless; nx_module_spine is
-# the twenty lines that tell an Engine about it. A module may build whatever it
-# likes - nx_module() only cares about the one that carries NX_DECLARE_MODULE.
-#
-# The option is declared here rather than left to nx_module() because the
-# dependency has to be fetched before the module can link it, and fetching a
-# 500 MB repository for a module nobody enabled would be rude.
 
 option(NX_MODULE_SPINE "Build the Spine 2D runtime integration" OFF)
 if (NOT NX_MODULE_SPINE)
@@ -28,9 +18,6 @@ add_library(nx::spine ALIAS nx_spine)
 target_include_directories(nx_spine PUBLIC "${CMAKE_SOURCE_DIR}/engine"
         "${CMAKE_SOURCE_DIR}/modules")
 
-# render2d for the mesh channel and the sort key, and nx::scene comes with it
-# for the registry the components live in. No RHI and no engine: a skeleton is
-# geometry until something draws it.
 target_link_libraries(nx_spine
         PUBLIC nx::foundation nx::render2d nx::spine_cpp
         PRIVATE nx::compile_options)

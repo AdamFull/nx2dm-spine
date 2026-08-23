@@ -1,13 +1,3 @@
-/**
- * @file test_spine_assets.cpp
- * @brief Loading a real skeleton, through the VFS and with no GPU.
- *
- * spineboy is the fixture the Spine runtimes ship. Its numbers are not round,
- * which is the point: a loader that half worked would produce plausible ones,
- * and these are the ones the editor shows.
- *
- * Built with the module, like everything else here.
- */
 
 #include "framework/nxtest.h"
 
@@ -27,8 +17,6 @@ using namespace nxm::spine_test;
 
 namespace spine2d = nxe::spine2d;
 
-/// The asset tree, mounted rather than copied - the same arrangement the scene
-/// tests use for their fonts.
 struct Mounted {
   Mounted() {
     nx::vfs::initialize();
@@ -48,12 +36,6 @@ struct Mounted {
   nx::vfs::MountId m_mount{};
 };
 
-/// The pro skeleton against the premultiplied atlas, which is the pairing a
-/// Spine export leaves you to make: three atlases, two skeletons, and no
-/// shared stem between them.
-
-/// Counts what it was asked for, so a case can tell a page that resolved from
-/// one that was never looked up.
 struct Resolver {
   nx::vector<nx::string> asked;
   bool saw_premultiplied = false;
@@ -69,7 +51,7 @@ struct Resolver {
   }
 };
 
-} // namespace
+}
 
 TEST_CASE("spine: an asset handle is one pointer and cheap to retain") {
   CHECK(sizeof(spine2d::SkeletonAsset) == sizeof(void *));
@@ -91,14 +73,11 @@ TEST_CASE("spine: a skeleton loads through the VFS") {
   CHECK(error.empty());
   CHECK(asset.valid());
 
-  // spineboy's own shape, as the editor reports it. Round numbers would mean
-  // a loader that produced defaults rather than read a file.
   CHECK(asset.bone_count() > 20u);
   CHECK(asset.slot_count() > 20u);
   CHECK(asset.animation_count() >= 8u);
   CHECK(asset.skin_count() >= 1u);
 
-  // The animations the fixture is known for, by name rather than by count.
   CHECK(asset.has_animation("walk"));
   CHECK(asset.has_animation("jump"));
   CHECK(asset.has_animation("run"));
@@ -117,13 +96,10 @@ TEST_CASE("spine: the atlas asks the host for its pages, and is told") {
   REQUIRE(
       spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), asset, error));
 
-  // One page, named beside the atlas rather than as an absolute path.
   REQUIRE(resolver.asked.size() >= 1u);
   CHECK(resolver.asked[0].find("spineboy") != nx::string::npos);
   CHECK(resolver.asked[0].find(".png") != nx::string::npos);
 
-  // spineboy-pma.atlas is premultiplied and the loader has to notice: it is
-  // what picks the blend mode, and getting it wrong haloes every edge.
   CHECK(asset.premultiplied() == resolver.saw_premultiplied);
 }
 
@@ -136,8 +112,6 @@ TEST_CASE("spine: a page the host cannot back still loads, untextured") {
   resolver.answer = pack_texture(NX_TEXTURE_NONE, 0);
   spine2d::SkeletonAsset asset;
   nx::string error;
-  // A missing image is a character drawn in flat colour, not a refusal to
-  // load: the rest of the skeleton is still worth having on screen.
   REQUIRE(
       spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), asset, error));
   CHECK(asset.valid());
@@ -156,8 +130,6 @@ TEST_CASE("spine: reading goes through the VFS, not the C library") {
   REQUIRE(
       spine2d::load_skeleton(SKELETON, ATLAS_PMA, resolver.fn(), asset, error));
 
-  // SPINE_NO_FILE_IO is on, so anything the runtime read itself came through
-  // our extension - which is what makes a skeleton inside an APK loadable.
   CHECK(spine2d::bytes_read() >= before);
 }
 
@@ -190,8 +162,6 @@ TEST_CASE("spine: a failed reload clears only the caller's handle") {
   REQUIRE(bones > 0u);
   const spine2d::SkeletonAsset retained = asset;
 
-  // The output honestly reports that this reload produced nothing, while
-  // components and poses retaining the last version remain valid.
   CHECK_FALSE(spine2d::load_skeleton("/spine/nope.skel", ATLAS_PMA,
                                      resolver.fn(), asset, error));
   CHECK_FALSE(asset.valid());
@@ -217,6 +187,5 @@ TEST_CASE("spine: an asset handle keeps a loaded version alive") {
   first = {};
   CHECK(second.valid());
   CHECK(second.bone_count() == bones);
-  // Dropping one handle cannot invalidate another owner of the version.
   CHECK_FALSE(first.valid());
 }

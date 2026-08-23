@@ -1,11 +1,5 @@
 #pragma once
 
-/**
- * @file spine_component.h
- * @brief A skeleton placed in a scene, and the pose it holds (namespace
- * nxe::spine2d).
- */
-
 #include "core/rendering/render2d/mesh_channel.h"
 #include "core/scene/components.h"
 #include "spine/spine_assets.h"
@@ -17,7 +11,7 @@
 namespace spine {
 class Skeleton;
 class AnimationState;
-} // namespace spine
+}
 
 namespace nxe::spine2d {
 
@@ -59,7 +53,7 @@ struct SpineInstanceObjectDeleter {
 struct SpineEventSinkDeleter {
   void operator()(SpineEventSink *sink) const noexcept;
 };
-} // namespace detail
+}
 
 class SpineInstance {
 public:
@@ -113,4 +107,4 @@ private:
   scene::Entity m_entity;
 };
 
-} // namespace nxe::spine2d
+}

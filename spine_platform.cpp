@@ -69,7 +69,7 @@ protected:
   }
 };
 
-} // namespace
+}
 
 void install_platform() {
   ::spine::Bone::setYDown(false);
@@ -88,7 +88,7 @@ u64 bytes_read() noexcept {
   return g_bytes_read.load(std::memory_order_relaxed);
 }
 
-} // namespace nxe::spine2d
+}
 
 namespace spine {
 
@@ -97,4 +97,4 @@ SpineExtension *getDefaultExtension() {
   return SpineExtension::getInstance();
 }
 
-} // namespace spine
+}
