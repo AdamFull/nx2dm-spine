@@ -65,7 +65,7 @@ if (TARGET assetc AND NOT ANDROID AND NOT IOS)
             ../spine_assets.cpp ../spine_asset_bundle.cpp
             ../spine_platform.cpp)
     target_include_directories(nx_spine_shipping_asset_tests PRIVATE
-            "${CMAKE_SOURCE_DIR}/engine" "${CMAKE_SOURCE_DIR}/modules")
+            "${NX_ENGINE_ROOT}/engine" "${NX_ENGINE_ROOT}/modules")
     target_link_libraries(nx_spine_shipping_asset_tests
             PRIVATE nx::test nx::foundation nx::render2d nx::spine_cpp
             nx::compile_options)

@@ -21,8 +21,8 @@ set(NX_SPINE_SOURCES spine_assets.cpp spine_component.cpp spine_platform.cpp
 add_library(nx_spine STATIC ${NX_SPINE_SOURCES} ${NX_SPINE_HEADERS})
 add_library(nx::spine ALIAS nx_spine)
 
-target_include_directories(nx_spine PUBLIC "${CMAKE_SOURCE_DIR}/engine"
-        "${CMAKE_SOURCE_DIR}/modules")
+target_include_directories(nx_spine PUBLIC "${NX_ENGINE_ROOT}/engine"
+        "${NX_ENGINE_ROOT}/modules")
 
 target_link_libraries(nx_spine
         PUBLIC nx::foundation nx::render2d nx::spine_cpp
