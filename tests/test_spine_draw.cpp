@@ -7,10 +7,14 @@
 #include "core/foundation/vfs/vfs.h"
 #include "core/rendering/render2d/material_system.h"
 #include "core/rendering/render2d/scene_renderer.h"
+#include "core/scene/animation_graph.h"
+#include "core/scene/assets.h"
 #include "spine/spine_assets.h"
 #include "spine/spine_system.h"
 
 #include <spine/BlendMode.h>
+#include <spine/Animation.h>
+#include <spine/AnimationState.h>
 #include <spine/SkeletonData.h>
 #include <spine/SlotData.h>
 
@@ -482,6 +486,51 @@ TEST_CASE("spine: an animation the skeleton does not have is refused") {
   CHECK(instance.play("walk"));
   CHECK(instance.queue("jump", false, 0.5f));
   CHECK_FALSE(instance.set_skin("no-such-skin"));
+}
+
+TEST_CASE("spine: an engine graph transitions and mixes native animations") {
+  const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  scene::registry_t registry = bare_registry();
+  registry.register_component<scene::AnimationGraphComponent>(
+      {.name = "AnimationGraphComponent"});
+  spine2d::SpineSystem system;
+  const scene::Entity entity = registry.create();
+  registry.emplace<scene::WorldTransform2D>(entity);
+  system.attach(registry, entity, loaded.asset);
+
+  scene::AnimationGraph graph;
+  graph.add_parameter("jump", 0.f);
+  const u16 walk = nx::cast<u16>(
+      graph.add_state("walk", graph.add_clip_slot("walk")));
+  const u16 jump = nx::cast<u16>(
+      graph.add_state("jump", graph.add_clip_slot("jump"), 1.f,
+                      scene::PlayMode::Once));
+  const scene::TransitionCondition go[] = {
+      {0, scene::Compare::Greater, 0.5f}};
+  graph.add_transition(walk, jump, go, 0.3f);
+  scene::AssetRegistry assets;
+  const scene::GraphHandle graph_handle = assets.add_graph(std::move(graph));
+  scene::AnimationGraphComponent controller;
+  controller.graph = graph_handle;
+  controller.clip_set = scene::INVALID_CLIP_SET;
+  registry.emplace<scene::AnimationGraphComponent>(entity, controller);
+
+  REQUIRE(system.update(registry, assets, 0.f) == 1u);
+  auto *entry = registry.get<spine2d::SpineInstance>(entity)
+                    .animation()
+                    ->getTrack(0);
+  REQUIRE(entry != nullptr);
+  CHECK(nx::string_view(entry->getAnimation().getName().buffer()) == "walk");
+
+  registry.get<scene::AnimationGraphComponent>(entity).params[0] = 1.f;
+  REQUIRE(system.update(registry, assets, 0.016f) == 1u);
+  entry = registry.get<spine2d::SpineInstance>(entity).animation()->getTrack(0);
+  REQUIRE(entry != nullptr);
+  CHECK(nx::string_view(entry->getAnimation().getName().buffer()) == "jump");
+  CHECK(entry->getMixDuration() == nxtest::Approx(0.3f));
 }
 
 TEST_CASE("spine: many skeletons pose the same way across a pool") {

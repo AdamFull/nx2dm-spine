@@ -3,6 +3,8 @@
 #include "core/foundation/diagnostics/profiler.h"
 #include "core/rendering/render2d/material_system.h"
 #include "core/rendering/render2d/scene_renderer.h"
+#include "core/scene/animation_graph.h"
+#include "core/scene/assets.h"
 #include "spine/spine_assets.h"
 
 #include <spine/AnimationState.h>
@@ -64,7 +66,8 @@ SpineInstance &SpineSystem::attach(scene::registry_t &registry,
   return registry.emplace_or_replace<SpineInstance>(e, asset, e);
 }
 
-usize SpineSystem::update(scene::registry_t &registry, const f32 dt) {
+usize SpineSystem::update(scene::registry_t &registry,
+                          const scene::AssetRegistry &assets, const f32 dt) {
   NX_PROFILE_ZONE("spine::update");
 
   m_pending.clear();
@@ -88,18 +91,53 @@ usize SpineSystem::update(scene::registry_t &registry, const f32 dt) {
 
   m_posed.clear();
   m_posed_data.clear();
+  m_posed_steps.clear();
   registry.view<const SpineComponent, SpineInstance>().each(
-      [&](const scene::Entity, const SpineComponent &component,
+      [&](const scene::Entity e, const SpineComponent &component,
           SpineInstance &instance) {
         if (!instance.valid())
           return;
+        f32 step = dt * component.time_scale;
+        if (auto *controller =
+                registry.try_get<scene::AnimationGraphComponent>(e);
+            controller != nullptr && !controller->clip_set.valid()) {
+          const scene::AnimationGraph *const graph =
+              assets.graph(controller->graph);
+          if (graph != nullptr) {
+            const auto duration = [&](const u32 slot, const u16,
+                                      f32 &seconds) {
+              return instance.animation_duration(graph->clip_slot_name(slot),
+                                                 seconds);
+            };
+            scene::GraphTick tick;
+            if (scene::update_animation_state_machine(
+                    *controller, *graph, duration, step, tick)) {
+              const scene::AnimationState *const state =
+                  graph->state(controller->state);
+              if (state != nullptr) {
+                const f32 speed = state->speed * controller->speed;
+                if (tick.entered != scene::INVALID_STATE)
+                  (void)instance.play(
+                      graph->clip_slot_name(state->clip_slot),
+                      state->mode == scene::PlayMode::Loop, 0,
+                      controller->blending() ? controller->blend_duration : 0.f,
+                      speed, controller->time);
+                else
+                  (void)instance.set_speed(speed);
+              }
+              if (!controller->playing)
+                step = 0.f;
+            }
+          }
+        }
         m_posed.push_back(&instance);
         m_posed_data.push_back(&component);
+        m_posed_steps.push_back(step);
       });
 
   const auto pose = [&](const usize i) {
     SpineInstance &instance = *m_posed[i];
-    const f32 step = dt * m_posed_data[i]->time_scale;
+    const f32 step = m_posed_steps[i];
     instance.animation()->update(step);
     instance.animation()->apply(*instance.skeleton());
     instance.skeleton()->update(step);
@@ -117,6 +155,11 @@ usize SpineSystem::update(scene::registry_t &registry, const f32 dt) {
     instance->take_events(m_events);
 
   return m_posed.size();
+}
+
+usize SpineSystem::update(scene::registry_t &registry, const f32 dt) {
+  static const scene::AssetRegistry no_graph_assets;
+  return update(registry, no_graph_assets, dt);
 }
 
 usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,

@@ -11,6 +11,10 @@ namespace nxe::r2d {
 class MaterialSystem;
 }
 
+namespace nxe::scene {
+class AssetRegistry;
+}
+
 namespace nxe::spine2d {
 
 struct SpineView {
@@ -35,6 +39,8 @@ public:
   SpineInstance &attach(scene::registry_t &registry, scene::Entity e,
                         const SkeletonAsset &asset);
 
+  usize update(scene::registry_t &registry, const scene::AssetRegistry &assets,
+               f32 dt);
   usize update(scene::registry_t &registry, f32 dt);
 
   usize emit(scene::registry_t &registry, r2d::MeshChannel &out,
@@ -57,6 +63,7 @@ private:
   nx::vector<scene::Entity> m_pending;
   nx::vector<SpineInstance *> m_posed;
   nx::vector<const SpineComponent *> m_posed_data;
+  nx::vector<f32> m_posed_steps;
   nx::vector<SpineEvent> m_events;
   nx::vector<r2d::MeshVertex> m_vertices;
   nx::vector<u32> m_indices;

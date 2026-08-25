@@ -144,14 +144,42 @@ void SpineInstance::reset() noexcept {
 }
 
 bool SpineInstance::play(const nx::string_view name, const bool loop,
-                         const usize track) {
+                         const usize track, const f32 mix_duration,
+                         const f32 speed, const f32 start_time) {
   if (m_animation == nullptr)
     return false;
   ::spine::Animation *const found =
       m_animation->getData().getSkeletonData().findAnimation(owned(name));
   if (found == nullptr)
     return false;
-  m_animation->setAnimation(track, *found, loop);
+  ::spine::TrackEntry &entry = m_animation->setAnimation(track, *found, loop);
+  if (mix_duration >= 0.f)
+    entry.setMixDuration(mix_duration);
+  entry.setTimeScale(nx::max(speed, 0.f));
+  if (start_time > 0.f)
+    entry.setTrackTime(start_time);
+  return true;
+}
+
+bool SpineInstance::animation_duration(const nx::string_view name,
+                                       f32 &duration) const {
+  if (m_animation == nullptr)
+    return false;
+  ::spine::Animation *const found =
+      m_animation->getData().getSkeletonData().findAnimation(owned(name));
+  if (found == nullptr)
+    return false;
+  duration = found->getDuration();
+  return true;
+}
+
+bool SpineInstance::set_speed(const f32 speed, const usize track) {
+  if (m_animation == nullptr)
+    return false;
+  ::spine::TrackEntry *const entry = m_animation->getTrack(track);
+  if (entry == nullptr)
+    return false;
+  entry->setTimeScale(nx::max(speed, 0.f));
   return true;
 }
 

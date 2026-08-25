@@ -84,10 +84,15 @@ public:
     return m_asset.premultiplied();
   }
 
-  bool play(nx::string_view name, bool loop = true, usize track = 0);
+  bool play(nx::string_view name, bool loop = true, usize track = 0,
+            f32 mix_duration = -1.f, f32 speed = 1.f,
+            f32 start_time = 0.f);
   bool queue(nx::string_view name, bool loop = true, f32 delay = 0.f,
              usize track = 0);
   void stop(usize track = 0);
+  bool set_speed(f32 speed, usize track = 0);
+  [[nodiscard]] bool animation_duration(nx::string_view name,
+                                        f32 &duration) const;
 
   bool set_skin(nx::string_view name);
 

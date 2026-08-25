@@ -3,8 +3,10 @@
 #include "spine/spine_asset_bundle.h"
 
 #include "core/foundation/platform/filesystem.h"
+#include "core/foundation/serialization/json_document.h"
 
 #include <cstdio>
+#include <cstring>
 
 namespace assetc {
 namespace {
@@ -29,8 +31,11 @@ struct Inputs {
     return false;
   }
   Inputs loaded;
-  if (!nxe::spine2d::parse_spine_descriptor(text->view(), loaded.descriptor,
-                                            error))
+  const auto descriptor_json =
+      nx::json::normalize_asset_document(text->view());
+  if (!descriptor_json ||
+      !nxe::spine2d::parse_spine_descriptor(
+          descriptor_json->view(), loaded.descriptor, error))
     return false;
   const nx::string_view parent = nx::fs::path::parent_path(source);
   const nx::string skeleton =
@@ -48,6 +53,20 @@ struct Inputs {
       atlas_bytes->size() > nxe::spine2d::MAX_SPINE_RESOURCE_BYTES) {
     error = nx::string("cannot read bounded atlas '") + atlas + "'";
     return false;
+  }
+  if (loaded.descriptor.skeleton.ends_with(".json")) {
+    const nx::string_view skeleton_text(
+        reinterpret_cast<const char *>(skeleton_bytes->data()),
+        skeleton_bytes->size());
+    const auto normalized = nx::json::normalize_asset_document(skeleton_text);
+    if (!normalized) {
+      error = nx::string("skeleton '") + skeleton + "' is not valid JSON";
+      return false;
+    }
+    nx::blob<u8> normalized_bytes(normalized->size());
+    std::memcpy(normalized_bytes.data(), normalized->data(),
+                normalized->size());
+    skeleton_bytes = std::move(normalized_bytes);
   }
   nx::vector<nx::string> pages;
   if (!nxe::spine2d::parse_spine_atlas_pages(

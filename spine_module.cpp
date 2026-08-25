@@ -45,7 +45,8 @@ public:
   bool on_attach(ModuleContext &ctx) override {
     ctx.schedule().define(UPDATE_SYSTEM,
                           sys::SystemFn([this, &ctx](const sys::Context &c) {
-                            (void)m_system.update(ctx.scene().registry(), c.dt);
+                            (void)m_system.update(ctx.scene().registry(),
+                                                  ctx.scene().assets(), c.dt);
                           }));
     ctx.schedule().add(sys::Stage::Update, UPDATE_SYSTEM);
 
