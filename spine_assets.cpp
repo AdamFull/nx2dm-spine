@@ -1,7 +1,10 @@
 #include "spine/spine_assets.h"
 
+#include "spine/spine_asset_bundle.h"
+
 #include "core/foundation/diagnostics/log.h"
 #include "core/foundation/platform/filesystem.h"
+#include "core/foundation/serialization/asset_policy.h"
 #include "core/foundation/strings/format.h"
 #include "core/foundation/vfs/vfs.h"
 #include "core/rendering/render2d/render_interop.h"
@@ -34,8 +37,7 @@ public:
                where);
   }
 
-  void unload(void *) override {
-  }
+  void unload(void *) override {}
 
   [[nodiscard]] bool premultiplied() const noexcept { return m_premultiplied; }
 
@@ -48,7 +50,20 @@ private:
   return {text.buffer(), nx::cast<usize>(text.length())};
 }
 
+[[nodiscard]] bool ends_with(const nx::string_view value,
+                             const nx::string_view suffix) noexcept {
+  return value.size() >= suffix.size() &&
+         value.substr(value.size() - suffix.size()) == suffix;
 }
+
+[[nodiscard]] nx::string beside(const nx::string_view descriptor,
+                                const nx::string_view relative) {
+  const nx::string_view dir = nx::fs::path::parent_path(descriptor);
+  return dir.empty() || dir == "/" ? nx::format("/{}", relative)
+                                   : nx::format("{}/{}", dir, relative);
+}
+
+} // namespace
 
 namespace detail {
 
@@ -70,7 +85,69 @@ public:
   bool premultiplied = false;
 };
 
+} // namespace detail
+
+namespace {
+
+[[nodiscard]] bool build_skeleton(
+    const nx::string_view skeleton_path, const std::span<const u8> skeleton,
+    const nx::string_view atlas_path, const std::span<const u8> atlas,
+    TextureResolver resolve,
+    nx::shared_ptr<detail::SkeletonAssetData> &loaded_out, nx::string &error) {
+  if (skeleton.empty() || atlas.empty())
+    return false;
+
+  const nx::string dir(nx::fs::path::parent_path(atlas_path));
+  nx::shared_ptr<detail::SkeletonAssetData> loaded =
+      nx::make_shared<detail::SkeletonAssetData>();
+  if (loaded == nullptr) {
+    error = "out of memory while loading skeleton";
+    return false;
+  }
+
+  loaded->loader.reset(new ResolvingLoader(std::move(resolve)));
+  loaded->atlas.reset(new ::spine::Atlas(
+      reinterpret_cast<const char *>(atlas.data()), nx::cast<int>(atlas.size()),
+      dir.c_str(), loaded->loader.get()));
+  if (loaded->atlas->getPages().size() == 0) {
+    error = nx::format("'{}' names no pages", atlas_path);
+    return false;
+  }
+
+  ::spine::SkeletonData *data = nullptr;
+  if (ends_with(skeleton_path, ".skel")) {
+    ::spine::SkeletonBinary reader(*loaded->atlas);
+    data = reader.readSkeletonData(
+        reinterpret_cast<const unsigned char *>(skeleton.data()),
+        nx::cast<int>(skeleton.size()));
+    if (data == nullptr)
+      error = nx::format("{}: {}", skeleton_path, to_view(reader.getError()));
+  } else {
+    const nx::string text(nx::string_view(
+        reinterpret_cast<const char *>(skeleton.data()), skeleton.size()));
+    ::spine::SkeletonJson reader(*loaded->atlas);
+    data = reader.readSkeletonData(text.c_str());
+    if (data == nullptr)
+      error = nx::format("{}: {}", skeleton_path, to_view(reader.getError()));
+  }
+  if (data == nullptr)
+    return false;
+
+  loaded->data.reset(data);
+  loaded->mixes.reset(new ::spine::AnimationStateData(*data));
+  loaded->premultiplied =
+      static_cast<ResolvingLoader *>(loaded->loader.get())->premultiplied();
+  loaded_out = std::move(loaded);
+  return true;
 }
+
+void log_loaded(const nx::string_view path, const SkeletonAsset &out) {
+  nx::logi("spine: '{}' - {} bones, {} slots, {} animations{}", path,
+           out.bone_count(), out.slot_count(), out.animation_count(),
+           out.premultiplied() ? ", premultiplied" : "");
+}
+
+} // namespace
 
 bool SkeletonAsset::valid() const noexcept {
   return m_version != nullptr && m_version->data != nullptr;
@@ -122,66 +199,124 @@ bool load_skeleton(const nx::string_view skeleton_path,
   install_platform();
   out.m_version.reset();
   error.clear();
-
-  const auto atlas_text = nx::vfs::read(atlas_path);
-  if (!atlas_text) {
-    error = nx::format("no atlas at '{}'", atlas_path);
+#if defined(NX_BUILD_SHIPPING)
+  (void)skeleton_path;
+  (void)atlas_path;
+  (void)resolve;
+  error = "Shipping requires an atomic .nxspine.nxb asset";
+  return false;
+#else
+  const auto skeleton = nx::vfs::read(skeleton_path);
+  const auto atlas = nx::vfs::read(atlas_path);
+  if (!skeleton || skeleton->empty() ||
+      skeleton->size() > MAX_SPINE_RESOURCE_BYTES) {
+    error = nx::format("no bounded skeleton at '{}'", skeleton_path);
     return false;
   }
-
-  const nx::string dir(nx::fs::path::parent_path(atlas_path));
-
-  nx::shared_ptr<detail::SkeletonAssetData> loaded =
-      nx::make_shared<detail::SkeletonAssetData>();
-  if (loaded == nullptr) {
-    error = "out of memory while loading skeleton";
+  if (!atlas || atlas->empty() || atlas->size() > MAX_SPINE_RESOURCE_BYTES) {
+    error = nx::format("no bounded atlas at '{}'", atlas_path);
     return false;
   }
-
-  loaded->loader.reset(new ResolvingLoader(std::move(resolve)));
-  loaded->atlas.reset(new ::spine::Atlas(
-      reinterpret_cast<const char *>(atlas_text->data()),
-      nx::cast<int>(atlas_text->size()), dir.c_str(), loaded->loader.get()));
-  if (loaded->atlas->getPages().size() == 0) {
-    error = nx::format("'{}' names no pages", atlas_path);
+  nx::shared_ptr<detail::SkeletonAssetData> loaded;
+  if (!build_skeleton(skeleton_path, {skeleton->data(), skeleton->size()},
+                      atlas_path, {atlas->data(), atlas->size()},
+                      std::move(resolve), loaded, error))
     return false;
-  }
-
-  ::spine::SkeletonData *data = nullptr;
-  const bool binary = nx::fs::path::extension(skeleton_path) == ".skel";
-  if (binary) {
-    if (const auto bytes = nx::vfs::read(skeleton_path)) {
-      ::spine::SkeletonBinary reader(*loaded->atlas);
-      data = reader.readSkeletonData(
-          reinterpret_cast<const unsigned char *>(bytes->data()),
-          nx::cast<int>(bytes->size()));
-      if (data == nullptr)
-        error = nx::format("{}: {}", skeleton_path, to_view(reader.getError()));
-    } else {
-      error = nx::format("no skeleton at '{}'", skeleton_path);
-    }
-  } else if (const auto text = nx::vfs::read_text(skeleton_path)) {
-    ::spine::SkeletonJson reader(*loaded->atlas);
-    data = reader.readSkeletonData(text->c_str());
-    if (data == nullptr)
-      error = nx::format("{}: {}", skeleton_path, to_view(reader.getError()));
-  } else {
-    error = nx::format("no skeleton at '{}'", skeleton_path);
-  }
-
-  if (data == nullptr) {
-    return false;
-  }
-
-  loaded->data.reset(data);
-  loaded->mixes.reset(new ::spine::AnimationStateData(*data));
-  loaded->premultiplied =
-      static_cast<ResolvingLoader *>(loaded->loader.get())->premultiplied();
   out.m_version = std::move(loaded);
-  nx::logi("spine: '{}' - {} bones, {} slots, {} animations{}", skeleton_path,
-           out.bone_count(), out.slot_count(), out.animation_count(),
-           out.premultiplied() ? ", premultiplied" : "");
+  log_loaded(skeleton_path, out);
   return true;
+#endif
 }
 
+bool load_skeleton(const nx::string_view asset_path, TextureResolver resolve,
+                   SkeletonAsset &out, nx::string &error) {
+  install_platform();
+  out.m_version.reset();
+  error.clear();
+  try {
+    const bool explicit_cooked = ends_with(asset_path, ".nxb");
+    const nx::string descriptor_path =
+        explicit_cooked
+            ? nx::string(asset_path.substr(0, asset_path.size() - 4))
+            : nx::string(asset_path);
+    nx::string cooked_path(asset_path);
+    if (!explicit_cooked)
+      cooked_path += ".nxb";
+    const nx::vfs::FileInfo cooked_info = nx::vfs::stat(cooked_path.view());
+    if (cooked_info.exists) {
+      if (cooked_info.is_directory ||
+          cooked_info.size > MAX_SPINE_BUNDLE_BYTES) {
+        error = nx::format("cooked Spine asset '{}' exceeds its size limit",
+                           cooked_path);
+        return false;
+      }
+      const auto bytes = nx::vfs::read(cooked_path.view());
+      const auto bundle =
+          bytes ? open_spine_bundle({bytes->data(), bytes->size()})
+                : std::nullopt;
+      if (!bundle) {
+        error = nx::format("cooked Spine asset '{}' is malformed", cooked_path);
+        return false;
+      }
+      const nx::string skeleton_path =
+          beside(descriptor_path.view(), bundle->descriptor.skeleton.view());
+      const nx::string atlas_path =
+          beside(descriptor_path.view(), bundle->descriptor.atlas.view());
+      nx::shared_ptr<detail::SkeletonAssetData> loaded;
+      if (!build_skeleton(skeleton_path.view(), bundle->skeleton(),
+                          atlas_path.view(), bundle->atlas(),
+                          std::move(resolve), loaded, error))
+        return false;
+      out.m_version = std::move(loaded);
+      log_loaded(descriptor_path.view(), out);
+      return true;
+    }
+    if (explicit_cooked || !nx::asset_policy::can_fallback_to_authored_source(
+                               cooked_info.exists)) {
+      error = nx::format("no cooked Spine asset at '{}'", cooked_path);
+      return false;
+    }
+
+    const auto text = nx::vfs::read_text(descriptor_path.view());
+    if (!text || text->size() > MAX_SPINE_DESCRIPTOR_BYTES) {
+      error =
+          nx::format("no bounded Spine descriptor at '{}'", descriptor_path);
+      return false;
+    }
+    SpineDescriptor descriptor;
+    if (!parse_spine_descriptor(text->view(), descriptor, error)) {
+      error = nx::format("{}: {}", descriptor_path, error);
+      return false;
+    }
+    const nx::string skeleton_path =
+        beside(descriptor_path.view(), descriptor.skeleton.view());
+    const nx::string atlas_path =
+        beside(descriptor_path.view(), descriptor.atlas.view());
+    const auto skeleton = nx::vfs::read(skeleton_path.view());
+    const auto atlas = nx::vfs::read(atlas_path.view());
+    if (!skeleton || skeleton->empty() ||
+        skeleton->size() > MAX_SPINE_RESOURCE_BYTES) {
+      error = nx::format("no bounded skeleton at '{}'", skeleton_path);
+      return false;
+    }
+    if (!atlas || atlas->empty() || atlas->size() > MAX_SPINE_RESOURCE_BYTES) {
+      error = nx::format("no bounded atlas at '{}'", atlas_path);
+      return false;
+    }
+    nx::shared_ptr<detail::SkeletonAssetData> loaded;
+    if (!build_skeleton(skeleton_path.view(),
+                        {skeleton->data(), skeleton->size()}, atlas_path.view(),
+                        {atlas->data(), atlas->size()}, std::move(resolve),
+                        loaded, error))
+      return false;
+    out.m_version = std::move(loaded);
+    log_loaded(descriptor_path.view(), out);
+    return true;
+  } catch (...) {
+    error = nx::format("resource exhaustion while loading Spine asset '{}'",
+                       asset_path);
+    return false;
+  }
 }
+
+} // namespace nxe::spine2d

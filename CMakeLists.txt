@@ -1,5 +1,11 @@
 
 option(NX_MODULE_SPINE "Build the Spine 2D runtime integration" OFF)
+
+# The host cooker is available for every installed module format even when the
+# current target does not enable the Spine runtime.
+nx_asset_cooker(spine
+        SOURCES spine_cooker.cpp spine_asset_bundle.cpp)
+
 if (NOT NX_MODULE_SPINE)
     return()
 endif ()
@@ -8,9 +14,9 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/NxSpine.cmake")
 nx_add_spine()
 
 set(NX_SPINE_HEADERS spine_assets.h spine_component.h spine_platform.h
-        spine_system.h)
+        spine_system.h spine_asset_bundle.h)
 set(NX_SPINE_SOURCES spine_assets.cpp spine_component.cpp spine_platform.cpp
-        spine_system.cpp)
+        spine_system.cpp spine_asset_bundle.cpp)
 
 add_library(nx_spine STATIC ${NX_SPINE_SOURCES} ${NX_SPINE_HEADERS})
 add_library(nx::spine ALIAS nx_spine)

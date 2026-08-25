@@ -8,7 +8,7 @@ namespace spine {
 class Atlas;
 class SkeletonData;
 class AnimationStateData;
-}
+} // namespace spine
 
 namespace nxe::spine2d {
 
@@ -53,6 +53,8 @@ public:
 private:
   friend bool load_skeleton(nx::string_view, nx::string_view, TextureResolver,
                             SkeletonAsset &, nx::string &);
+  friend bool load_skeleton(nx::string_view, TextureResolver, SkeletonAsset &,
+                            nx::string &);
 
   nx::shared_ptr<const detail::SkeletonAssetData> m_version;
 };
@@ -62,4 +64,11 @@ private:
                                  TextureResolver resolve, SkeletonAsset &out,
                                  nx::string &error);
 
-}
+/// Loads one authored .nxspine descriptor in development and its atomic
+/// .nxspine.nxb bundle in Shipping. Relative atlas page paths remain relative
+/// to the descriptor's atlas, so existing texture resolvers need no changes.
+[[nodiscard]] bool load_skeleton(nx::string_view asset_path,
+                                 TextureResolver resolve, SkeletonAsset &out,
+                                 nx::string &error);
+
+} // namespace nxe::spine2d

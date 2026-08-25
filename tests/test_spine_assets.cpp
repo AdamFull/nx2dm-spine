@@ -51,7 +51,7 @@ struct Resolver {
   }
 };
 
-}
+} // namespace
 
 TEST_CASE("spine: an asset handle is one pointer and cheap to retain") {
   CHECK(sizeof(spine2d::SkeletonAsset) == sizeof(void *));
@@ -82,6 +82,22 @@ TEST_CASE("spine: a skeleton loads through the VFS") {
   CHECK(asset.has_animation("jump"));
   CHECK(asset.has_animation("run"));
   CHECK_FALSE(asset.has_animation("no-such-animation"));
+}
+
+TEST_CASE("spine: an authored descriptor loads both related resources") {
+  const Mounted mounted;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(mounted.ok());
+
+  Resolver resolver;
+  resolver.answer = pack_texture(7, 1);
+  spine2d::SkeletonAsset asset;
+  nx::string error;
+  REQUIRE(spine2d::load_skeleton(BUNDLE, resolver.fn(), asset, error));
+  CHECK(error.empty());
+  CHECK(asset.valid());
+  CHECK(asset.bone_count() > 20u);
+  CHECK(asset.has_animation("walk"));
 }
 
 TEST_CASE("spine: the atlas asks the host for its pages, and is told") {

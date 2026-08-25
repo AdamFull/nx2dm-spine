@@ -13,6 +13,8 @@ inline constexpr nx::string_view ATLAS_PMA =
     "/spine/spineboy/export/spineboy-pma.atlas";
 inline constexpr nx::string_view ATLAS_STRAIGHT =
     "/spine/spineboy/export/spineboy.atlas";
+inline constexpr nx::string_view BUNDLE =
+    "/spine/spineboy/export/spineboy.nxspine";
 
 [[nodiscard]] inline nx::string_view fixture_dir() noexcept {
   return NX_SPINE_FIXTURE_DIR;
@@ -26,7 +28,7 @@ inline constexpr nx::string_view ATLAS_STRAIGHT =
   return nx::fs::exists(nx::fs::path_view(path));
 }
 
-}
+} // namespace nxm::spine_test
 
 #if NX_REQUIRE_MODULE_FIXTURES
 #define NX_REQUIRE_FIXTURE()                                                   \

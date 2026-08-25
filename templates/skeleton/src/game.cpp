@@ -11,9 +11,13 @@
 
 namespace {
 
-class {{Project}}Game {
+class {
+  {
+    Project
+  }
+} Game {
 public:
-  void configure(nxe::EngineConfig &config) {
+  void configure(nxe::EngineConfig & config) {
     config.app.name = "{{project}}";
     config.app.window.title = "{{project}}";
     config.app.window.width = 1280;
@@ -26,17 +30,17 @@ public:
     config.audio_bank = {};
   }
 
-  bool on_create(nxe::Engine &engine) {
+  bool on_create(nxe::Engine & engine) {
     const nxe::scene::Entity camera = engine.scene().create_node("camera");
     engine.scene().registry().emplace<nxe::scene::Camera2D>(
         camera, nxe::scene::Camera2D{.ortho_height = 6.f, .active = true});
     engine.scene().set_active_camera(camera);
 
     add_skeleton(engine);
-    if (nxe::start_scripts(
-            engine, {.backend = nxe::script::luau_backend(),
-                     .expose_game = {},
-                     .load_module = &nxe::script::load_luau_module}))
+    if (nxe::start_scripts(engine,
+                           {.backend = nxe::script::luau_backend(),
+                            .expose_game = {},
+                            .load_module = &nxe::script::load_luau_module}))
       (void)engine.scripts().define(engine.schedule(), "skeleton",
                                     "game.skeleton");
 
@@ -44,7 +48,7 @@ public:
     return true;
   }
 
-  void add_skeleton(nxe::Engine &engine) {
+  void add_skeleton(nxe::Engine & engine) {
     const nxe::rhi::TextureHandle page =
         engine.load_texture("/spine/spineboy-pma.png");
     if (!page.valid()) {
@@ -56,7 +60,7 @@ public:
 
     nx::string error;
     if (!nxe::spine2d::load_skeleton(
-            "/spine/spineboy-pro.skel", "/spine/spineboy-pma.atlas",
+            "/spine/spineboy.nxspine",
             nxe::spine2d::TextureResolver(
                 [index, sampler](nx::string_view, const bool premultiplied) {
                   return pack_texture(index, sampler, premultiplied);
@@ -81,6 +85,10 @@ private:
   nxe::spine2d::SkeletonAsset m_skeleton;
 };
 
-}
+} // namespace
 
-NX_IMPLEMENT_GAME_OBJECT({{Project}}Game)
+NX_IMPLEMENT_GAME_OBJECT({
+  {
+    Project
+  }
+} Game)
