@@ -20,7 +20,7 @@ endfunction()
 
 function(nx_add_spine)
   if(NOT NX_SPINE2D_SOURCE_DIR)
-    _nx_spine_resolve("${CMAKE_CURRENT_LIST_DIR}/third_party/spine-cpp" _local)
+    _nx_spine_resolve("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/third_party/spine-cpp" _local)
     if(_local)
       set(NX_SPINE2D_SOURCE_DIR "${_local}")
     endif()
@@ -36,14 +36,21 @@ function(nx_add_spine)
     message(STATUS "nx2d: Spine from ${_spine_dir}")
   else()
     include(FetchContent)
+    find_package(Git 2.25 REQUIRED)
+    # FetchContent's shallow Git mode clones the repository's current branch
+    # before checkout, so an older pinned object is not necessarily present.
+    # Fetch the requested object directly and materialize only spine-cpp.
     FetchContent_Declare(spine_runtimes
-      GIT_REPOSITORY "${NX_SPINE2D_REPOSITORY}"
-      GIT_TAG "${NX_SPINE2D_TAG}"
-      GIT_SHALLOW TRUE
-      GIT_SUBMODULES ""
-      GIT_PROGRESS TRUE
+      DOWNLOAD_COMMAND
+        "${CMAKE_COMMAND}"
+        "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}"
+        "-DREPOSITORY=${NX_SPINE2D_REPOSITORY}"
+        "-DREVISION=${NX_SPINE2D_TAG}"
+        "-DSOURCE_DIR=<SOURCE_DIR>"
+        -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/FetchSpine.cmake"
+      UPDATE_COMMAND ""
       SOURCE_SUBDIR "cmake-is-not-here")
-    message(STATUS "nx2d: fetching Spine ${NX_SPINE2D_TAG} (this is a large repository)")
+    message(STATUS "nx2d: fetching exact sparse Spine revision ${NX_SPINE2D_TAG}")
     FetchContent_MakeAvailable(spine_runtimes)
     _nx_spine_resolve("${spine_runtimes_SOURCE_DIR}" _spine_dir)
     if(NOT _spine_dir)
