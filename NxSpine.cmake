@@ -64,6 +64,23 @@ function(nx_add_spine)
   add_library(nx_spine_cpp STATIC ${_spine_sources})
   add_library(nx::spine_cpp ALIAS nx_spine_cpp)
   target_include_directories(nx_spine_cpp SYSTEM PUBLIC "${_spine_dir}/include")
+
+  # The upstream runtime intentionally uses the portable CRT APIs. Keep the
+  # MSVC deprecation policy private to this dependency instead of weakening
+  # diagnostics on nx2d targets.
+  if(MSVC)
+    target_compile_definitions(nx_spine_cpp PRIVATE _CRT_SECURE_NO_WARNINGS)
+  endif()
+
+  # Physics_None returns before the switch in PhysicsConstraint::update, but
+  # Clang still diagnoses that enumerator as unhandled. Contain the upstream
+  # false positive to that source file; every other Spine and nx2d switch keeps
+  # the configured warning policy.
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set_property(SOURCE "${_spine_dir}/src/spine/PhysicsConstraint.cpp"
+      APPEND PROPERTY COMPILE_OPTIONS -Wno-switch)
+  endif()
+
   # Reading is nx::vfs's job: on Android the assets are inside the APK and
   # there is no path fopen could take. Private because it is read in exactly
   # one .cpp and changes no declaration.
