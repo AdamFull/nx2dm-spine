@@ -37,6 +37,9 @@ struct SpineEvent {
 
 struct SpineComponent {
   SkeletonAsset asset;
+  /// Non-empty for assets owned by SpineSystem's path cache. Direct handles
+  /// remain supported, but have no file generation to follow.
+  nx::string source;
   glm::vec4 color{1.f, 1.f, 1.f, 1.f};
   f32 time_scale = 1.f;
   i32 layer = 0;
@@ -83,6 +86,10 @@ public:
   [[nodiscard]] bool premultiplied() const noexcept {
     return m_asset.premultiplied();
   }
+
+  /// Recreates Spine's runtime objects on a fresh asset version while
+  /// preserving active track names, playheads, loop flags, speeds and skin.
+  [[nodiscard]] bool rebind(const SkeletonAsset &asset);
 
   bool play(nx::string_view name, bool loop = true, usize track = 0,
             f32 mix_duration = -1.f, f32 speed = 1.f,

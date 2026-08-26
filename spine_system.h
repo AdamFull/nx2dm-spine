@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/foundation/threading/thread_pool.h"
+#include "core/foundation/containers/string_map.h"
 #include "spine/spine_component.h"
 
 namespace spine {
@@ -38,6 +39,17 @@ public:
 
   SpineInstance &attach(scene::registry_t &registry, scene::Entity e,
                         const SkeletonAsset &asset);
+  /// Loads and attaches a cache-owned asset generation.
+  SpineInstance *attach(scene::registry_t &registry, scene::Entity e,
+                        nx::string_view path, nx::string *error = nullptr);
+
+  void set_texture_resolver(TextureResolver resolver) {
+    m_resolve = std::move(resolver);
+  }
+  [[nodiscard]] SkeletonAsset load(nx::string_view path,
+                                   nx::string *error = nullptr);
+  [[nodiscard]] usize reload_changed(scene::registry_t &registry);
+  void clear_assets();
 
   usize update(scene::registry_t &registry, const scene::AssetRegistry &assets,
                f32 dt);
@@ -57,6 +69,13 @@ public:
   static constexpr usize PARALLEL_THRESHOLD = 4;
 
 private:
+  struct CachedAsset {
+    SkeletonAsset asset;
+    u64 stamp = 0;
+  };
+
+  TextureResolver m_resolve;
+  nx::string_map<CachedAsset> m_assets;
   nx::thread_pool *m_threads = nullptr;
   ::spine::SkeletonRenderer *m_renderer = nullptr;
 

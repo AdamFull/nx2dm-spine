@@ -4,6 +4,8 @@
 #include "core/foundation/core/foundation.h"
 #include "core/foundation/strings/utf8_string.h"
 
+#include <span>
+
 namespace spine {
 class Atlas;
 class SkeletonData;
@@ -49,6 +51,7 @@ public:
   [[nodiscard]] usize animation_count() const noexcept;
   [[nodiscard]] usize skin_count() const noexcept;
   [[nodiscard]] bool has_animation(nx::string_view name) const noexcept;
+  [[nodiscard]] std::span<const nx::string> dependencies() const noexcept;
 
 private:
   friend bool load_skeleton(nx::string_view, nx::string_view, TextureResolver,

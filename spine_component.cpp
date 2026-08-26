@@ -161,6 +161,50 @@ bool SpineInstance::play(const nx::string_view name, const bool loop,
   return true;
 }
 
+bool SpineInstance::rebind(const SkeletonAsset &asset) {
+  if (!asset.valid())
+    return false;
+
+  struct Track {
+    nx::string name;
+    usize index = 0;
+    f32 time = 0.f;
+    f32 speed = 1.f;
+    bool loop = true;
+  };
+  nx::vector<Track> tracks;
+  if (m_animation != nullptr) {
+    auto &active = m_animation->getTracks();
+    tracks.reserve(nx::cast<usize>(active.size()));
+    for (usize i = 0; i < nx::cast<usize>(active.size()); ++i) {
+      ::spine::TrackEntry *const entry = active[nx::cast<int>(i)];
+      if (entry == nullptr)
+        continue;
+      tracks.push_back(
+          {.name = nx::string(view_of(entry->getAnimation().getName())),
+           .index = nx::cast<usize>(entry->getTrackIndex()),
+           .time = entry->getTrackTime(),
+           .speed = entry->getTimeScale(),
+           .loop = entry->getLoop()});
+    }
+  }
+
+  nx::string skin;
+  if (m_skeleton != nullptr && m_skeleton->getSkin() != nullptr)
+    skin = nx::string(view_of(m_skeleton->getSkin()->getName()));
+
+  SpineInstance fresh(asset, m_entity);
+  if (!fresh.valid())
+    return false;
+  if (!skin.empty())
+    (void)fresh.set_skin(skin.view());
+  for (const Track &track : tracks)
+    (void)fresh.play(track.name.view(), track.loop, track.index, 0.f,
+                     track.speed, track.time);
+  *this = std::move(fresh);
+  return true;
+}
+
 bool SpineInstance::animation_duration(const nx::string_view name,
                                        f32 &duration) const {
   if (m_animation == nullptr)

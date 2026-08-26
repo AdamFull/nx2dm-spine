@@ -1,10 +1,12 @@
 #include "spine/spine_system.h"
 
 #include "core/foundation/diagnostics/profiler.h"
+#include "core/foundation/diagnostics/log.h"
 #include "core/rendering/render2d/material_system.h"
 #include "core/rendering/render2d/scene_renderer.h"
 #include "core/scene/animation_graph.h"
 #include "core/scene/assets.h"
+#include "core/foundation/vfs/vfs.h"
 #include "spine/spine_assets.h"
 
 #include <spine/AnimationState.h>
@@ -14,6 +16,22 @@
 
 namespace nxe::spine2d {
 namespace {
+
+[[nodiscard]] u64 source_stamp(
+    const std::span<const nx::string> dependencies) noexcept {
+  u64 stamp = 14695981039346656037ull;
+  for (const nx::string &path : dependencies) {
+    const nx::vfs::FileInfo info = nx::vfs::stat(path.view());
+    const u64 words[] = {nx::hash_fnv1a64(path.data(), path.size()),
+                         info.mtime_ns, info.size,
+                         info.exists ? 1ull : 0ull};
+    for (const u64 word : words) {
+      stamp ^= word;
+      stamp *= 1099511628211ull;
+    }
+  }
+  return stamp;
+}
 
 [[nodiscard]] u32 tint(const u32 argb, const glm::vec4 &color,
                        const bool premultiplied) noexcept {
@@ -63,7 +81,75 @@ SpineInstance &SpineSystem::attach(scene::registry_t &registry,
   if (component == nullptr)
     component = &registry.emplace<SpineComponent>(e);
   component->asset = asset;
+  component->source.clear();
   return registry.emplace_or_replace<SpineInstance>(e, asset, e);
+}
+
+SkeletonAsset SpineSystem::load(const nx::string_view path, nx::string *error) {
+  const auto cached = m_assets.find(path);
+  if (cached != m_assets.end())
+    return cached->second.asset;
+
+  SkeletonAsset asset;
+  nx::string why;
+  if (!load_skeleton(path, m_resolve, asset, why)) {
+    if (error != nullptr)
+      *error = std::move(why);
+    return {};
+  }
+  CachedAsset entry{asset, source_stamp(asset.dependencies())};
+  m_assets.emplace(nx::string(path), std::move(entry));
+  if (error != nullptr)
+    error->clear();
+  return asset;
+}
+
+SpineInstance *SpineSystem::attach(scene::registry_t &registry,
+                                   const scene::Entity e,
+                                   const nx::string_view path,
+                                   nx::string *error) {
+  const SkeletonAsset asset = load(path, error);
+  if (!asset.valid())
+    return nullptr;
+  SpineComponent *component = registry.try_get<SpineComponent>(e);
+  if (component == nullptr)
+    component = &registry.emplace<SpineComponent>(e);
+  component->asset = asset;
+  component->source = nx::string(path);
+  return &registry.emplace_or_replace<SpineInstance>(e, asset, e);
+}
+
+usize SpineSystem::reload_changed(scene::registry_t &registry) {
+  usize count = 0;
+  for (auto &[path, cached] : m_assets) {
+    const u64 changed = source_stamp(cached.asset.dependencies());
+    if (changed == cached.stamp)
+      continue;
+    cached.stamp = changed;
+
+    SkeletonAsset fresh;
+    nx::string error;
+    if (!load_skeleton(path.view(), m_resolve, fresh, error)) {
+      nx::logw("spine: '{}' changed but its last valid generation remains: {}",
+               path, error);
+      continue;
+    }
+    cached.asset = fresh;
+    cached.stamp = source_stamp(fresh.dependencies());
+    registry.view<SpineComponent>().each(
+        [&](const scene::Entity, SpineComponent &component) {
+          if (component.source == path)
+            component.asset = fresh;
+        });
+    ++count;
+    nx::logi("spine: reloaded '{}'", path);
+  }
+  return count;
+}
+
+void SpineSystem::clear_assets() {
+  m_assets.clear();
+  m_resolve = {};
 }
 
 usize SpineSystem::update(scene::registry_t &registry,
@@ -83,8 +169,14 @@ usize SpineSystem::update(scene::registry_t &registry,
       });
   for (const scene::Entity e : m_pending) {
     const SkeletonAsset &asset = registry.get<SpineComponent>(e).asset;
-    if (asset.valid())
-      registry.emplace_or_replace<SpineInstance>(e, asset, e);
+    if (asset.valid()) {
+      if (SpineInstance *const instance =
+              registry.try_get<SpineInstance>(e);
+          instance != nullptr && instance->valid())
+        (void)instance->rebind(asset);
+      else
+        registry.emplace_or_replace<SpineInstance>(e, asset, e);
+    }
     else
       (void)registry.remove<SpineInstance>(e);
   }

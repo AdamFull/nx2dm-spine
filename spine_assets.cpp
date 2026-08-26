@@ -29,6 +29,11 @@ public:
   void load(::spine::AtlasPage &page, const ::spine::String &path) override {
     m_premultiplied = m_premultiplied || page.pma;
     const nx::string_view where(path.buffer(), nx::cast<usize>(path.length()));
+    bool known = false;
+    for (const nx::string &held : m_pages)
+      known |= held == where;
+    if (!known)
+      m_pages.push_back(nx::string(where));
     const u32 packed = m_resolve ? m_resolve(where, page.pma)
                                  : pack_texture(NX_TEXTURE_NONE, 0);
     page.texture = reinterpret_cast<void *>(static_cast<uintptr_t>(packed));
@@ -40,10 +45,14 @@ public:
   void unload(void *) override {}
 
   [[nodiscard]] bool premultiplied() const noexcept { return m_premultiplied; }
+  [[nodiscard]] const nx::vector<nx::string> &pages() const noexcept {
+    return m_pages;
+  }
 
 private:
   TextureResolver m_resolve;
   bool m_premultiplied = false;
+  nx::vector<nx::string> m_pages;
 };
 
 [[nodiscard]] nx::string_view to_view(const ::spine::String &text) noexcept {
@@ -83,6 +92,7 @@ public:
   nx::unique_ptr<::spine::SkeletonData, SpineObjectDeleter> data;
   nx::unique_ptr<::spine::AnimationStateData, SpineObjectDeleter> mixes;
   bool premultiplied = false;
+  nx::vector<nx::string> dependencies;
 };
 
 } // namespace detail
@@ -137,6 +147,8 @@ namespace {
   loaded->mixes.reset(new ::spine::AnimationStateData(*data));
   loaded->premultiplied =
       static_cast<ResolvingLoader *>(loaded->loader.get())->premultiplied();
+  loaded->dependencies =
+      static_cast<ResolvingLoader *>(loaded->loader.get())->pages();
   loaded_out = std::move(loaded);
   return true;
 }
@@ -193,6 +205,12 @@ bool SkeletonAsset::has_animation(const nx::string_view name) const noexcept {
   return data()->findAnimation(::spine::String(owned.c_str())) != nullptr;
 }
 
+std::span<const nx::string> SkeletonAsset::dependencies() const noexcept {
+  if (m_version == nullptr)
+    return {};
+  return {m_version->dependencies.data(), m_version->dependencies.size()};
+}
+
 bool load_skeleton(const nx::string_view skeleton_path,
                    const nx::string_view atlas_path, TextureResolver resolve,
                    SkeletonAsset &out, nx::string &error) {
@@ -222,6 +240,8 @@ bool load_skeleton(const nx::string_view skeleton_path,
                       atlas_path, {atlas->data(), atlas->size()},
                       std::move(resolve), loaded, error))
     return false;
+  loaded->dependencies.push_back(nx::string(skeleton_path));
+  loaded->dependencies.push_back(nx::string(atlas_path));
   out.m_version = std::move(loaded);
   log_loaded(skeleton_path, out);
   return true;
@@ -267,6 +287,7 @@ bool load_skeleton(const nx::string_view asset_path, TextureResolver resolve,
                           atlas_path.view(), bundle->atlas(),
                           std::move(resolve), loaded, error))
         return false;
+      loaded->dependencies.push_back(cooked_path);
       out.m_version = std::move(loaded);
       log_loaded(descriptor_path.view(), out);
       return true;
@@ -309,6 +330,10 @@ bool load_skeleton(const nx::string_view asset_path, TextureResolver resolve,
                         {atlas->data(), atlas->size()}, std::move(resolve),
                         loaded, error))
       return false;
+    loaded->dependencies.push_back(descriptor_path);
+    loaded->dependencies.push_back(cooked_path);
+    loaded->dependencies.push_back(skeleton_path);
+    loaded->dependencies.push_back(atlas_path);
     out.m_version = std::move(loaded);
     log_loaded(descriptor_path.view(), out);
     return true;

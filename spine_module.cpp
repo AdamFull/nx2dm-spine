@@ -7,6 +7,8 @@
 #include "core/app/module.h"
 
 #include "core/foundation/diagnostics/log.h"
+#include "core/rendering/render2d/render_interop.h"
+#include "core/scene/sampler.h"
 
 namespace nxe::spine2d {
 namespace {
@@ -29,6 +31,16 @@ public:
 
   bool on_register(ModuleContext &ctx) override {
     m_system.set_threads(&ctx.threads());
+    const u32 sampler = ctx.samplers().index(scene::sampler_bilinear());
+    m_system.set_texture_resolver(TextureResolver(
+        [&ctx, sampler](const nx::string_view path,
+                        const bool premultiplied) {
+          const rhi::TextureHandle texture = ctx.load_texture(path);
+          return texture.valid()
+                     ? pack_texture(ctx.device().texture_index(texture),
+                                    sampler, premultiplied)
+                     : pack_texture(NX_TEXTURE_NONE, 0);
+        }));
     if (!ctx.service_registrar().provide(SERVICE, PROVIDED_SERVICES[0].version,
                                          m_system)) {
       m_system.set_threads(nullptr);
@@ -40,6 +52,10 @@ public:
 
   void on_expose_scripts(script::Host &host, ModuleContext &ctx) override {
     expose_spine_services(host, ctx);
+  }
+
+  void on_hot_reload(ModuleContext &ctx) override {
+    (void)m_system.reload_changed(ctx.scene().registry());
   }
 
   bool on_attach(ModuleContext &ctx) override {
@@ -72,6 +88,7 @@ public:
 
   void on_unregister(ModuleContext &) override {
     m_system.set_threads(nullptr);
+    m_system.clear_assets();
   }
 
 private:

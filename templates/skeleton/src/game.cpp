@@ -4,7 +4,6 @@
 #include "core/script/luau/luau_backend.h"
 #include "core/script/luau/luau_runtime.h"
 
-#include "spine/spine_assets.h"
 #include "spine/spine_module.h"
 
 #include "core/foundation/diagnostics/log.h"
@@ -49,27 +48,6 @@ public:
   }
 
   void add_skeleton(nxe::Engine & engine) {
-    const nxe::rhi::TextureHandle page =
-        engine.load_texture("/spine/spineboy-pma.png");
-    if (!page.valid()) {
-      nx::logw("{{project}}: no skeleton art under /spine");
-      return;
-    }
-    const u32 index = engine.device().texture_index(page);
-    const u32 sampler = engine.samplers().index({});
-
-    nx::string error;
-    if (!nxe::spine2d::load_skeleton(
-            "/spine/spineboy.nxspine",
-            nxe::spine2d::TextureResolver(
-                [index, sampler](nx::string_view, const bool premultiplied) {
-                  return pack_texture(index, sampler, premultiplied);
-                }),
-            m_skeleton, error)) {
-      nx::logw("{{project}}: {}", error);
-      return;
-    }
-
     const nxe::scene::Entity e = engine.scene().create_node("skeleton");
     engine.scene().set_scale(e, {0.004f, 0.004f});
     engine.scene().set_position(e, {0.f, -2.f});
@@ -78,11 +56,14 @@ public:
       nx::loge("{{project}}: Spine service is unavailable");
       return;
     }
-    spine->attach(engine.scene().registry(), e, m_skeleton).play("idle");
+    nx::string error;
+    nxe::spine2d::SpineInstance *const instance = spine->attach(
+        engine.scene().registry(), e, "/spine/spineboy.nxspine", &error);
+    if (instance == nullptr)
+      nx::logw("{{project}}: {}", error);
+    else
+      (void)instance->play("idle");
   }
-
-private:
-  nxe::spine2d::SkeletonAsset m_skeleton;
 };
 
 } // namespace
