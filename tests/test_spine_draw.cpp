@@ -6,6 +6,7 @@
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/vfs/vfs.h"
 #include "core/rendering/render2d/material_system.h"
+#include "core/rendering/render2d/render_interop.h"
 #include "core/rendering/render2d/scene_renderer.h"
 #include "core/scene/animation_graph.h"
 #include "core/scene/assets.h"
@@ -171,7 +172,7 @@ TEST_CASE("spine: every draw of one skeleton carries the same key") {
   REQUIRE(system.emit(registry, channel, view) > 1u);
 
   const u32 expected = nx_make_sort_key(
-      nx::cast<u32>(5 + 2048),
+      nx::cast<u32>(5 + 32768),
       r2d::quantize_depth(3.f, view.depth_min, view.depth_max), 0u);
   for (const r2d::MeshDraw &draw : channel.draws) {
     CHECK(draw.sort_key == expected);
@@ -206,8 +207,8 @@ TEST_CASE("spine: two skeletons sort by layer, then by depth") {
   const u32 back_key = sorted.front().sort_key;
   const u32 front_key = sorted.back().sort_key;
   CHECK(back_key < front_key);
-  CHECK((front_key >> 20) == nx::cast<u32>(1 + 2048));
-  CHECK((back_key >> 20) == nx::cast<u32>(2048));
+  CHECK(nx_sort_key_layer(front_key) == nx::cast<u16>(1 + 32768));
+  CHECK(nx_sort_key_layer(back_key) == nx::cast<u16>(32768));
 }
 
 TEST_CASE("spine: the node's transform is what places the skeleton") {

@@ -277,7 +277,8 @@ usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,
           batch = view.materials->batch_of(component.material);
           material_offset = view.materials->offset_of(component.material);
         }
-        const u32 layer = nx::cast<u32>(component.layer + 2048) & 0xFFFu;
+        const u32 layer = nx::cast<u32>(
+            nx::clamp(component.layer, -32768, 32767) + 32768);
         const u32 key = nx_make_sort_key(layer,
                                          r2d::quantize_depth(node.world[2][1],
                                                              view.depth_min,
