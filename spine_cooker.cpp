@@ -90,7 +90,7 @@ struct Inputs {
   return true;
 }
 
-[[nodiscard]] bool cook_spine(const CookContext &context) {
+[[nodiscard]] bool cook_spine(const CookContext &context, CookOutputs &) {
   Inputs inputs;
   nx::string error;
   if (!read_inputs(context.source, inputs, error)) {
