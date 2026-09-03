@@ -10,7 +10,6 @@
 #include "spine/spine_assets.h"
 #include "spine/spine_system.h"
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
 #include <cstdlib>
