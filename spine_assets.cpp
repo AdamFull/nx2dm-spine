@@ -154,7 +154,7 @@ namespace {
 }
 
 void log_loaded(const nx::string_view path, const SkeletonAsset &out) {
-  nx::logi("spine: '{}' - {} bones, {} slots, {} animations{}", path,
+  nx::logd("spine: '{}' - {} bones, {} slots, {} animations{}", path,
            out.bone_count(), out.slot_count(), out.animation_count(),
            out.premultiplied() ? ", premultiplied" : "");
 }

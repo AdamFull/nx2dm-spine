@@ -131,7 +131,7 @@ usize SpineSystem::reload_changed(scene::registry_t &registry) {
             component.asset = fresh;
         });
     ++count;
-    nx::logi("spine: reloaded '{}'", path);
+    nx::logd("spine: reloaded '{}'", path);
   }
   return count;
 }
