@@ -1,12 +1,12 @@
 #include "spine/spine_system.h"
 
-#include "core/foundation/diagnostics/profiler.h"
 #include "core/foundation/diagnostics/log.h"
+#include "core/foundation/diagnostics/profiler.h"
+#include "core/foundation/vfs/vfs.h"
 #include "core/rendering/render2d/material_system.h"
 #include "core/rendering/render2d/scene_renderer.h"
 #include "core/scene/animation_graph.h"
 #include "core/scene/assets.h"
-#include "core/foundation/vfs/vfs.h"
 #include "spine/spine_assets.h"
 
 #include <spine/AnimationState.h>
@@ -17,8 +17,8 @@
 namespace nxe::spine2d {
 namespace {
 
-[[nodiscard]] u64 source_stamp(
-    const std::span<const nx::string> dependencies) noexcept {
+[[nodiscard]] u64
+source_stamp(const std::span<const nx::string> dependencies) noexcept {
   return nx::vfs::files_generation(dependencies);
 }
 
@@ -54,7 +54,7 @@ namespace {
                        : r2d::MeshBlend::Normal;
 }
 
-}
+} // namespace
 
 SpineSystem::~SpineSystem() { delete m_renderer; }
 
@@ -108,11 +108,12 @@ SpineInstance *SpineSystem::attach(scene::registry_t &registry,
   return &registry.emplace_or_replace<SpineInstance>(e, asset, e);
 }
 
-usize SpineSystem::reload_changed(scene::registry_t &registry) {
+usize SpineSystem::reload_changed(scene::registry_t &registry,
+                                  const bool force) {
   usize count = 0;
   for (auto &[path, cached] : m_assets) {
     const u64 changed = source_stamp(cached.asset.dependencies());
-    if (changed == cached.stamp)
+    if (!force && changed == cached.stamp)
       continue;
     cached.stamp = changed;
 
@@ -159,14 +160,12 @@ usize SpineSystem::update(scene::registry_t &registry,
   for (const scene::Entity e : m_pending) {
     const SkeletonAsset &asset = registry.get<SpineComponent>(e).asset;
     if (asset.valid()) {
-      if (SpineInstance *const instance =
-              registry.try_get<SpineInstance>(e);
+      if (SpineInstance *const instance = registry.try_get<SpineInstance>(e);
           instance != nullptr && instance->valid())
         (void)instance->rebind(asset);
       else
         registry.emplace_or_replace<SpineInstance>(e, asset, e);
-    }
-    else
+    } else
       (void)registry.remove<SpineInstance>(e);
   }
 
@@ -185,14 +184,13 @@ usize SpineSystem::update(scene::registry_t &registry,
           const scene::AnimationGraph *const graph =
               assets.graph(controller->graph);
           if (graph != nullptr) {
-            const auto duration = [&](const u32 slot, const u16,
-                                      f32 &seconds) {
+            const auto duration = [&](const u32 slot, const u16, f32 &seconds) {
               return instance.animation_duration(graph->clip_slot_name(slot),
                                                  seconds);
             };
             scene::GraphTick tick;
-            if (scene::update_animation_state_machine(
-                    *controller, *graph, duration, step, tick)) {
+            if (scene::update_animation_state_machine(*controller, *graph,
+                                                      duration, step, tick)) {
               const scene::AnimationState *const state =
                   graph->state(controller->state);
               if (state != nullptr) {
@@ -266,8 +264,8 @@ usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,
           batch = view.materials->batch_of(component.material);
           material_offset = view.materials->offset_of(component.material);
         }
-        const u32 layer = nx::cast<u32>(
-            nx::clamp(component.layer, -32768, 32767) + 32768);
+        const u32 layer =
+            nx::cast<u32>(nx::clamp(component.layer, -32768, 32767) + 32768);
         const u32 key = nx_make_sort_key(layer,
                                          r2d::quantize_depth(node.world[2][1],
                                                              view.depth_min,
@@ -317,4 +315,4 @@ usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,
   return appended;
 }
 
-}
+} // namespace nxe::spine2d

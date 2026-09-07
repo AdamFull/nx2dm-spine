@@ -3,6 +3,7 @@
 
 #include "spine/spine_scripting.h"
 
+#include "core/app/async_texture_set.h"
 #include "core/app/engine.h"
 #include "core/app/module.h"
 
@@ -32,10 +33,10 @@ public:
   bool on_register(ModuleContext &ctx) override {
     m_system.set_threads(&ctx.threads());
     const u32 sampler = ctx.samplers().index(scene::sampler_bilinear());
-    m_system.set_texture_resolver(TextureResolver(
-        [&ctx, sampler](const nx::string_view path,
-                        const bool premultiplied) {
-          const rhi::TextureHandle texture = ctx.load_texture(path);
+    m_system.set_texture_resolver(
+        TextureResolver([this, &ctx, sampler](const nx::string_view path,
+                                              const bool premultiplied) {
+          const rhi::TextureHandle texture = m_textures.resolve(ctx, path);
           return texture.valid()
                      ? pack_texture(ctx.device().texture_index(texture),
                                     sampler, premultiplied)
@@ -59,11 +60,13 @@ public:
   }
 
   bool on_attach(ModuleContext &ctx) override {
-    ctx.schedule().define(UPDATE_SYSTEM,
-                          sys::SystemFn([this, &ctx](const sys::Context &c) {
-                            (void)m_system.update(ctx.scene().registry(),
-                                                  ctx.scene().assets(), c.dt);
-                          }));
+    ctx.schedule().define(
+        UPDATE_SYSTEM, sys::SystemFn([this, &ctx](const sys::Context &c) {
+          if (m_textures.pump(ctx) != 0)
+            (void)m_system.reload_changed(ctx.scene().registry(), true);
+          (void)m_system.update(ctx.scene().registry(), ctx.scene().assets(),
+                                c.dt);
+        }));
     ctx.schedule().add(sys::Stage::Update, UPDATE_SYSTEM);
 
     ctx.schedule().define(
@@ -86,21 +89,23 @@ public:
 
   void on_detach(ModuleContext &) override { m_system.set_threads(nullptr); }
 
-  void on_unregister(ModuleContext &) override {
+  void on_unregister(ModuleContext &ctx) override {
     m_system.set_threads(nullptr);
     m_system.clear_assets();
+    m_textures.release_all(ctx);
   }
 
 private:
   SpineSystem m_system;
+  AsyncTextureSet m_textures;
 };
 
-}
+} // namespace
 
 SpineSystem *system(Engine &engine) noexcept {
   return engine.services().find<SpineSystem>(SERVICE);
 }
 
-}
+} // namespace nxe::spine2d
 
 NX_DECLARE_MODULE(spine, nxe::spine2d::SpineModule)

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/foundation/threading/thread_pool.h"
 #include "core/foundation/containers/string_map.h"
+#include "core/foundation/threading/thread_pool.h"
 #include "spine/spine_component.h"
 
 namespace spine {
@@ -48,7 +48,8 @@ public:
   }
   [[nodiscard]] SkeletonAsset load(nx::string_view path,
                                    nx::string *error = nullptr);
-  [[nodiscard]] usize reload_changed(scene::registry_t &registry);
+  [[nodiscard]] usize reload_changed(scene::registry_t &registry,
+                                     bool force = false);
   void clear_assets();
 
   usize update(scene::registry_t &registry, const scene::AssetRegistry &assets,
@@ -88,4 +89,4 @@ private:
   nx::vector<u32> m_indices;
 };
 
-}
+} // namespace nxe::spine2d
