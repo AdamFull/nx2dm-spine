@@ -92,7 +92,7 @@ void dump(const u8 *const pixels, const u32 pass) {
   return n;
 }
 
-}
+} // namespace
 
 TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
   NX_REQUIRE_FIXTURE();
@@ -211,7 +211,7 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
     for (const r2d::MeshDraw &draw : channel.draws) {
       push.fields.index_offset = draw.first_index;
       push.fields.vertex_offset = draw.vertex_offset;
-      push.fields.texture = draw.texture;
+      push.fields.texture = nx_texture_2d<float4>(draw.texture);
       push.fields.camera = draw.camera;
       cmd.push_constants(&push, sizeof(push));
       cmd.draw(draw.index_count);
