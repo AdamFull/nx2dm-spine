@@ -6,6 +6,12 @@
   "description": "Loads Spine skeleton assets and drives per-entity animation through the engine's mesh-channel draw path.",
   "license": null,
   "created": "2026-08-09",
-  "repository": null,
-  "revision": null
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AdamFull/nx2dm-spine.git"
+  },
+  "revision": {
+    "branch": "main",
+    "commit": "3fafdb0d167d828d4e0f3c954da35aa2bb9f1305"
+  }
 }
