@@ -3,9 +3,9 @@
 
 #include "spine/spine_scripting.h"
 
-#include "core/app/async_texture_set.h"
+#include "core/app/assets/async_texture_set.h"
 #include "core/app/engine.h"
-#include "core/app/module.h"
+#include "core/app/module_system/module.h"
 
 #include "core/foundation/diagnostics/log.h"
 #include "core/rendering/render2d/render_interop.h"
