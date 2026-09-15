@@ -3,13 +3,13 @@
 
 #include "spine/spine_scripting.h"
 
-#include "core/app/assets/async_texture_set.h"
-#include "core/app/engine.h"
-#include "core/app/module_system/module.h"
+#include "app/assets/async_texture_set.h"
+#include "app/engine.h"
+#include "app/module_system/module.h"
 
 #include "core/foundation/diagnostics/log.h"
-#include "core/rendering/render2d/render_interop.h"
-#include "core/scene/sampler.h"
+#include "rendering/render2d/render_interop.h"
+#include "scene/sampler.h"
 
 namespace nxe::spine2d {
 namespace {

@@ -5,11 +5,11 @@
 
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/vfs/vfs.h"
-#include "core/rendering/render2d/material_system.h"
-#include "core/rendering/render2d/render_interop.h"
-#include "core/rendering/render2d/scene_renderer.h"
-#include "core/scene/animation/animation_graph.h"
-#include "core/scene/asset/assets.h"
+#include "rendering/render2d/material_system.h"
+#include "rendering/render2d/render_interop.h"
+#include "rendering/render2d/scene_renderer.h"
+#include "scene/animation/animation_graph.h"
+#include "scene/asset/assets.h"
 #include "spine/spine_assets.h"
 #include "spine/spine_system.h"
 

@@ -1,8 +1,8 @@
 
 #include "framework/nxtest.h"
 
-#include "core/app/engine.h"
-#include "core/script/script_host.h"
+#include "app/engine.h"
+#include "script/script_host.h"
 #include "spine/spine_scripting.h"
 
 namespace {

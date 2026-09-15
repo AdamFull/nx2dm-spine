@@ -6,7 +6,7 @@
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/strings/format.h"
 #include "core/foundation/vfs/vfs.h"
-#include "core/rendering/rhi/rhi.h"
+#include "rendering/rhi/rhi.h"
 #include "spine/spine_assets.h"
 #include "spine/spine_system.h"
 

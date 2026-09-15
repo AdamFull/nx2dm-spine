@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/rendering/render2d/mesh_channel.h"
-#include "core/scene/components.h"
+#include "rendering/render2d/mesh_channel.h"
+#include "scene/components.h"
 #include "spine/spine_assets.h"
 
 #include <glm/glm.hpp>
