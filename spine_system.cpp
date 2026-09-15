@@ -5,8 +5,8 @@
 #include "core/foundation/vfs/vfs.h"
 #include "core/rendering/render2d/material_system.h"
 #include "core/rendering/render2d/scene_renderer.h"
-#include "core/scene/animation_graph.h"
-#include "core/scene/assets.h"
+#include "core/scene/animation/animation_graph.h"
+#include "core/scene/asset/assets.h"
 #include "spine/spine_assets.h"
 
 #include <spine/AnimationState.h>
