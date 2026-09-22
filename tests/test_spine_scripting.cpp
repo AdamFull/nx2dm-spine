@@ -2,6 +2,8 @@
 #include "framework/nxtest.h"
 
 #include "app/engine.h"
+#include "core/foundation/platform/filesystem.h"
+#include "script/luau/luau_bindings.h"
 #include "script/script_host.h"
 #include "spine/spine_scripting.h"
 
@@ -20,41 +22,20 @@ struct Exposed {
     expose_spine_services(host, ctx);
     services = host.services();
   }
-
-  [[nodiscard]] const script::Host::ServiceInfo *
-  find(const nx::string_view name) const {
-    for (const script::Host::ServiceInfo &one : services)
-      if (one.name == name)
-        return &one;
-    return nullptr;
-  }
 };
 
 } // namespace
 
-TEST_CASE("spine scripting: every service is exposed with the shape a script "
-          "is told about") {
+TEST_CASE("spine scripting: every service is exposed as script-services.json "
+          "declares it") {
   const Exposed exposed;
+  const auto manifest = nx::fs::file_read_text(
+      nx::fs::path_view(NX_MODULE_SERVICES_MANIFEST));
+  REQUIRE(manifest);
 
-  static constexpr struct {
-    nx::string_view name;
-    nx::string_view signature;
-  } WANT[] = {
-      {"spine_play", "(number,string,boolean,number)->(boolean)"},
-      {"spine_queue", "(number,string,boolean,number,number)->(boolean)"},
-      {"spine_stop", "(number,number)->(boolean)"},
-      {"spine_skin", "(number,string)->(boolean)"},
-      {"spine_finished", "(number,number)->(boolean)"},
-      {"spine_visible", "(number,boolean)->(boolean)"},
-      {"spine_speed", "(number,number)->(boolean)"},
-  };
-
-  CHECK(exposed.services.size() == nx::array_size(WANT));
-  for (const auto &want : WANT) {
-    const script::Host::ServiceInfo *const found = exposed.find(want.name);
-    REQUIRE(found != nullptr);
-    CHECK(found->signature == want.signature);
-  }
+  nx::string error;
+  if (!script::luau_manifest_agrees(manifest.value(), exposed.services, error))
+    FAIL(error.c_str());
 }
 
 TEST_CASE("spine scripting: the module hands them over on its own") {
