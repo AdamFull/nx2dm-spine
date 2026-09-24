@@ -2,6 +2,7 @@
 
 #include "core/foundation/containers/string_map.h"
 #include "core/foundation/threading/thread_pool.h"
+#include "rendering/render2d/mesh_channel.h"
 #include "spine/spine_component.h"
 
 namespace spine {
@@ -75,18 +76,35 @@ private:
     u64 stamp = 0;
   };
 
+  struct EmitItem {
+    const SpineComponent *component = nullptr;
+    SpineInstance *instance = nullptr;
+    const scene::WorldTransform2D *node = nullptr;
+  };
+
+  /// One per concurrent emit: spine's renderer reuses its buffers, so its
+  /// commands last only until the same renderer renders again.
+  struct EmitChunk {
+    ::spine::SkeletonRenderer *renderer = nullptr;
+    r2d::MeshChannel meshes;
+    nx::vector<r2d::MeshVertex> vertices;
+    nx::vector<u32> indices;
+  };
+
+  void emit_range(EmitChunk &chunk, usize begin, usize end,
+                  const SpineView &view) const;
+
   TextureResolver m_resolve;
   nx::string_map<CachedAsset> m_assets;
   nx::thread_pool *m_threads = nullptr;
-  ::spine::SkeletonRenderer *m_renderer = nullptr;
 
   nx::vector<scene::Entity> m_pending;
   nx::vector<SpineInstance *> m_posed;
   nx::vector<const SpineComponent *> m_posed_data;
   nx::vector<f32> m_posed_steps;
   nx::vector<SpineEvent> m_events;
-  nx::vector<r2d::MeshVertex> m_vertices;
-  nx::vector<u32> m_indices;
+  nx::vector<EmitItem> m_emit_items;
+  nx::vector<EmitChunk> m_emit_chunks;
 };
 
 } // namespace nxe::spine2d

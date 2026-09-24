@@ -4,6 +4,7 @@
 #include "fixture.h"
 
 #include "core/foundation/platform/filesystem.h"
+#include "core/foundation/threading/thread_pool.h"
 #include "core/foundation/vfs/vfs.h"
 #include "rendering/render2d/material_system.h"
 #include "rendering/render2d/render_interop.h"
@@ -86,6 +87,52 @@ scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
              : sum / nx::cast<f32>(channel.vertices.size());
 }
 
+}
+
+TEST_CASE("spine: skeletons emitted on the pool match one thread exactly") {
+  const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  nx::thread_pool pool;
+  const auto emit = [&](nx::thread_pool *threads, r2d::MeshChannel &out) {
+    scene::registry_t registry = bare_registry();
+    spine2d::SpineSystem system(threads);
+    for (u32 i = 0; i < 24; ++i)
+      place(registry, system, loaded.asset,
+            {nx::cast<f32>(i) * 50.f, nx::cast<f32>(i % 5) * 30.f},
+            i % 2 != 0 ? "run" : "walk");
+    REQUIRE(system.update(registry, 0.37f) == 24u);
+    return system.emit(registry, out, {});
+  };
+
+  r2d::MeshChannel serial, parallel;
+  const usize serial_draws = emit(nullptr, serial);
+  const usize parallel_draws = emit(&pool, parallel);
+
+  REQUIRE(serial_draws >= 24u);
+  CHECK(parallel_draws == serial_draws);
+  REQUIRE(parallel.draws.size() == serial.draws.size());
+  REQUIRE(parallel.vertices.size() == serial.vertices.size());
+  REQUIRE(parallel.indices.size() == serial.indices.size());
+  usize mismatched = 0;
+  for (usize i = 0; i < serial.draws.size(); ++i) {
+    const r2d::MeshDraw &a = serial.draws[i];
+    const r2d::MeshDraw &b = parallel.draws[i];
+    if (a.first_index != b.first_index || a.index_count != b.index_count ||
+        a.vertex_offset != b.vertex_offset || a.texture != b.texture ||
+        a.sort_key != b.sort_key || a.blend != b.blend)
+      ++mismatched;
+  }
+  for (usize i = 0; i < serial.vertices.size(); ++i)
+    if (serial.vertices[i].position != parallel.vertices[i].position ||
+        serial.vertices[i].uv != parallel.vertices[i].uv ||
+        serial.vertices[i].color != parallel.vertices[i].color)
+      ++mismatched;
+  for (usize i = 0; i < serial.indices.size(); ++i)
+    if (serial.indices[i] != parallel.indices[i])
+      ++mismatched;
+  CHECK(mismatched == 0u);
 }
 
 TEST_CASE("spine: a posed skeleton becomes mesh draws") {

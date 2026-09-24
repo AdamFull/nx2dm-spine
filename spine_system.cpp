@@ -56,7 +56,10 @@ source_stamp(const std::span<const nx::string> dependencies) noexcept {
 
 } // namespace
 
-SpineSystem::~SpineSystem() { delete m_renderer; }
+SpineSystem::~SpineSystem() {
+  for (const EmitChunk &chunk : m_emit_chunks)
+    delete chunk.renderer;
+}
 
 void SpineSystem::register_components(scene::registry_t &registry) {
   registry.register_component<SpineComponent>({.name = "SpineComponent"});
@@ -241,77 +244,122 @@ usize SpineSystem::update(scene::registry_t &registry, const f32 dt) {
   return update(registry, no_graph_assets, dt);
 }
 
+void SpineSystem::emit_range(EmitChunk &chunk, const usize begin,
+                             const usize end, const SpineView &view) const {
+  chunk.meshes.clear();
+  if (chunk.renderer == nullptr)
+    chunk.renderer = new ::spine::SkeletonRenderer();
+
+  for (usize item = begin; item < end; ++item) {
+    const SpineComponent &component = *m_emit_items[item].component;
+    SpineInstance &instance = *m_emit_items[item].instance;
+    const scene::WorldTransform2D &node = *m_emit_items[item].node;
+
+    const bool premultiplied = instance.premultiplied();
+    u32 batch = 0u;
+    u32 material_offset = 0u;
+    if (view.materials != nullptr && component.material != 0u) {
+      batch = view.materials->batch_of(component.material);
+      material_offset = view.materials->offset_of(component.material);
+    }
+    const u32 layer =
+        nx::cast<u32>(nx::clamp(component.layer, -32768, 32767) + 32768);
+    const u32 key = nx_make_sort_key(
+        layer,
+        r2d::quantize_depth(node.world[2][1], view.depth_min, view.depth_max),
+        0u);
+
+    for (const ::spine::RenderCommand *command =
+             chunk.renderer->render(*instance.skeleton());
+         command != nullptr; command = command->next) {
+      if (command->numVertices == 0 || command->numIndices == 0)
+        continue;
+
+      const usize vertices = nx::cast<usize>(command->numVertices);
+      chunk.vertices.clear();
+      chunk.vertices.reserve(vertices);
+      for (usize i = 0; i < vertices; ++i) {
+        const f32 x = command->positions[i * 2];
+        const f32 y = command->positions[i * 2 + 1];
+        r2d::MeshVertex vertex;
+        vertex.position = glm::vec2(
+            node.world[0][0] * x + node.world[1][0] * y + node.world[2][0],
+            node.world[0][1] * x + node.world[1][1] * y + node.world[2][1]);
+        vertex.uv = glm::vec2(command->uvs[i * 2], command->uvs[i * 2 + 1]);
+        vertex.color = tint(command->colors[i], component.color, premultiplied);
+        chunk.vertices.push_back(vertex);
+      }
+
+      const usize indices = nx::cast<usize>(command->numIndices);
+      chunk.indices.clear();
+      chunk.indices.reserve(indices);
+      for (usize i = 0; i < indices; ++i)
+        chunk.indices.push_back(nx::cast<u32>(command->indices[i]));
+
+      r2d::MeshDraw &draw = chunk.meshes.append(chunk.vertices, chunk.indices);
+      draw.texture = nx::cast<u32>(
+          reinterpret_cast<uintptr_t>(command->texture) & 0xFFFFFFFFu);
+      draw.sort_key = key;
+      draw.camera = view.camera;
+      draw.blend = blend_of(command->blendMode, premultiplied);
+      draw.batch = batch;
+      draw.material = material_offset;
+    }
+  }
+}
+
 usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,
                         const SpineView &view) {
   NX_PROFILE_ZONE("spine::emit");
-  usize appended = 0;
 
+  m_emit_items.clear();
   registry
       .view<const SpineComponent, SpineInstance,
             const scene::WorldTransform2D>()
       .each([&](const scene::Entity, const SpineComponent &component,
                 SpineInstance &instance, const scene::WorldTransform2D &node) {
-        if (!component.visible || !instance.valid())
-          return;
-
-        if (m_renderer == nullptr)
-          m_renderer = new ::spine::SkeletonRenderer();
-
-        const bool premultiplied = instance.premultiplied();
-        u32 batch = 0u;
-        u32 material_offset = 0u;
-        if (view.materials != nullptr && component.material != 0u) {
-          batch = view.materials->batch_of(component.material);
-          material_offset = view.materials->offset_of(component.material);
-        }
-        const u32 layer =
-            nx::cast<u32>(nx::clamp(component.layer, -32768, 32767) + 32768);
-        const u32 key = nx_make_sort_key(layer,
-                                         r2d::quantize_depth(node.world[2][1],
-                                                             view.depth_min,
-                                                             view.depth_max),
-                                         0u);
-
-        for (const ::spine::RenderCommand *command =
-                 m_renderer->render(*instance.skeleton());
-             command != nullptr; command = command->next) {
-          if (command->numVertices == 0 || command->numIndices == 0)
-            continue;
-
-          const usize vertices = nx::cast<usize>(command->numVertices);
-          m_vertices.clear();
-          m_vertices.reserve(vertices);
-          for (usize i = 0; i < vertices; ++i) {
-            const f32 x = command->positions[i * 2];
-            const f32 y = command->positions[i * 2 + 1];
-            r2d::MeshVertex vertex;
-            vertex.position = glm::vec2(
-                node.world[0][0] * x + node.world[1][0] * y + node.world[2][0],
-                node.world[0][1] * x + node.world[1][1] * y + node.world[2][1]);
-            vertex.uv = glm::vec2(command->uvs[i * 2], command->uvs[i * 2 + 1]);
-            vertex.color =
-                tint(command->colors[i], component.color, premultiplied);
-            m_vertices.push_back(vertex);
-          }
-
-          const usize indices = nx::cast<usize>(command->numIndices);
-          m_indices.clear();
-          m_indices.reserve(indices);
-          for (usize i = 0; i < indices; ++i)
-            m_indices.push_back(nx::cast<u32>(command->indices[i]));
-
-          r2d::MeshDraw &draw = out.append(m_vertices, m_indices);
-          draw.texture = nx::cast<u32>(
-              reinterpret_cast<uintptr_t>(command->texture) & 0xFFFFFFFFu);
-          draw.sort_key = key;
-          draw.camera = view.camera;
-          draw.blend = blend_of(command->blendMode, premultiplied);
-          draw.batch = batch;
-          draw.material = material_offset;
-          ++appended;
-        }
+        if (component.visible && instance.valid())
+          m_emit_items.push_back({&component, &instance, &node});
       });
+  const usize count = m_emit_items.size();
+  if (count == 0)
+    return 0;
 
+  // Skeletons render into a buffer per chunk, then join the channel in their
+  // original order, so the draws come out as they did from one thread.
+  const bool parallel = m_threads != nullptr && m_threads->worker_count() > 0 &&
+                        count >= PARALLEL_THRESHOLD;
+  const usize chunks =
+      parallel ? nx::min<usize>(count, m_threads->worker_count() + 1u) : 1u;
+  if (m_emit_chunks.size() < chunks)
+    m_emit_chunks.resize(chunks);
+  const usize per_chunk = (count + chunks - 1) / chunks;
+  const auto run = [&](const usize c) {
+    const usize begin = nx::min(c * per_chunk, count);
+    emit_range(m_emit_chunks[c], begin, nx::min(begin + per_chunk, count),
+               view);
+  };
+  if (parallel)
+    m_threads->parallel_for(0, chunks, 1, run);
+  else
+    run(0);
+
+  usize appended = 0;
+  for (usize c = 0; c < chunks; ++c) {
+    const r2d::MeshChannel &local = m_emit_chunks[c].meshes;
+    const u32 base_vertex = nx::cast<u32>(out.vertices.size());
+    const u32 base_index = nx::cast<u32>(out.indices.size());
+    out.vertices.insert(out.vertices.end(), local.vertices.begin(),
+                        local.vertices.end());
+    out.indices.insert(out.indices.end(), local.indices.begin(),
+                       local.indices.end());
+    for (r2d::MeshDraw draw : local.draws) {
+      draw.first_index += base_index;
+      draw.vertex_offset += base_vertex;
+      out.draws.push_back(draw);
+    }
+    appended += local.draws.size();
+  }
   return appended;
 }
 
