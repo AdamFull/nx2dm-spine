@@ -32,6 +32,7 @@ struct MeshPush {
   u64 vertices = 0;
   u64 indices = 0;
   u64 materials = 0;
+  u64 draws = 0;
   ::MeshPushFields fields = {};
 };
 
@@ -162,7 +163,8 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
     const rhi::BufferHandle b = device.create_buffer({
         .name = name,
         .size = bytes,
-        .usage = rhi::BufferUsage::Storage | rhi::BufferUsage::DeviceAddress,
+        .usage = rhi::BufferUsage::Storage | rhi::BufferUsage::DeviceAddress |
+                 rhi::BufferUsage::Indirect,
         .memory = rhi::MemoryUsage::Upload,
         .persistently_mapped = true,
     });
@@ -187,10 +189,21 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
         upload("spine indices", channel.indices.data(),
                nx::cast<u64>(channel.indices.size()) * sizeof(u32));
 
+    r2d::MeshStream stream;
+    stream.build({channel.draws.data(), channel.draws.size()});
+    const rhi::BufferHandle records =
+        upload("spine draws", stream.records.data(),
+               nx::cast<u64>(stream.records.size()) * sizeof(GpuMeshDraw));
+    const rhi::BufferHandle commands =
+        upload("spine draw commands", stream.commands.data(),
+               nx::cast<u64>(stream.commands.size()) *
+                   sizeof(rhi::DrawIndirectCommand));
+
     MeshPush push;
     push.cameras = device.buffer_address(cameras);
     push.vertices = device.buffer_address(vertices);
     push.indices = device.buffer_address(indices);
+    push.draws = device.buffer_address(records);
 
     rhi::CommandContext cmd;
     REQUIRE(device.begin_headless_frame(cmd));
@@ -209,14 +222,9 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
         {.width = nx::cast<f32>(TARGET), .height = nx::cast<f32>(TARGET)});
     cmd.set_scissor({{0, 0}, {TARGET, TARGET}});
     cmd.bind_pipeline(pipeline);
-    for (const r2d::MeshDraw &draw : channel.draws) {
-      push.fields.index_offset = draw.first_index;
-      push.fields.vertex_offset = draw.vertex_offset;
-      push.fields.texture = nx_texture_2d<float4>(draw.texture);
-      push.fields.camera = draw.camera;
-      cmd.push_constants(&push, sizeof(push));
-      cmd.draw(draw.index_count);
-    }
+    cmd.push_constants(&push, sizeof(push));
+    cmd.draw_indirect(commands, 0, nx::cast<u32>(stream.commands.size()),
+                      sizeof(rhi::DrawIndirectCommand));
     cmd.end_render_pass();
     cmd.barrier(rhi::TextureBarrier{.texture = target,
                                     .from = rhi::ResourceState::ColorAttachment,
@@ -231,6 +239,8 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
                         pixels.data + nx::cast<usize>(TARGET) * TARGET * 4);
     dump(frames[pass].data(), pass);
 
+    device.destroy_buffer(commands);
+    device.destroy_buffer(records);
     device.destroy_buffer(indices);
     device.destroy_buffer(vertices);
   }

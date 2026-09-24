@@ -211,7 +211,7 @@ TEST_CASE("spine: every draw of one skeleton carries the same key") {
   registry.get<spine2d::SpineComponent>(e).layer = 5;
 
   loaded.asset.data()->getSlots()[26]->setBlendMode(
-      ::spine::BlendMode_Additive);
+      ::spine::BlendMode_Multiply);
   system.update(registry, 0.1f);
 
   const spine2d::SpineView view{2u, -1024.f, 1024.f};
@@ -227,11 +227,48 @@ TEST_CASE("spine: every draw of one skeleton carries the same key") {
     CHECK(draw.texture == pack_texture(7, 1));
   }
 
-  usize additive = 0;
+  usize multiply = 0;
   for (const r2d::MeshDraw &draw : channel.draws)
-    if (draw.blend == r2d::MeshBlend::AdditivePremultiplied)
-      ++additive;
-  CHECK(additive == 1u);
+    if (draw.blend == r2d::MeshBlend::Multiply)
+      ++multiply;
+  CHECK(multiply == 1u);
+  loaded.asset.data()->getSlots()[26]->setBlendMode(::spine::BlendMode_Normal);
+}
+
+TEST_CASE("spine: a premultiplied additive slot stays in the skeleton's draw") {
+  const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  scene::registry_t registry = bare_registry();
+  spine2d::SpineSystem system;
+  const scene::Entity e = place(registry, system, loaded.asset, {0.f, 0.f});
+  REQUIRE(registry.get<spine2d::SpineInstance>(e).premultiplied());
+
+  const auto clear_alpha = [](const r2d::MeshChannel &channel) {
+    usize count = 0;
+    for (const r2d::MeshVertex &vertex : channel.vertices)
+      if ((vertex.color >> 24) == 0u && (vertex.color & 0x00FFFFFFu) != 0u)
+        ++count;
+    return count;
+  };
+
+  system.update(registry, 0.1f);
+  r2d::MeshChannel plain;
+  const usize plain_draws = system.emit(registry, plain, {});
+  REQUIRE(plain_draws > 0u);
+
+  loaded.asset.data()->getSlots()[26]->setBlendMode(
+      ::spine::BlendMode_Additive);
+  system.update(registry, 0.f);
+  r2d::MeshChannel folded;
+  CHECK(system.emit(registry, folded, {}) == plain_draws);
+  loaded.asset.data()->getSlots()[26]->setBlendMode(::spine::BlendMode_Normal);
+
+  for (const r2d::MeshDraw &draw : folded.draws)
+    CHECK(draw.blend == r2d::MeshBlend::NormalPremultiplied);
+  CHECK(folded.vertices.size() == plain.vertices.size());
+  CHECK(clear_alpha(folded) > clear_alpha(plain));
 }
 
 TEST_CASE("spine: two skeletons sort by layer, then by depth") {

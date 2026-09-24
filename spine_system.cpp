@@ -22,8 +22,11 @@ source_stamp(const std::span<const nx::string> dependencies) noexcept {
   return nx::vfs::files_generation(dependencies);
 }
 
+/// An additive slot in premultiplied content is drawn as a normal one with
+/// alpha zero: the premultiplied over operator then adds its colour and leaves
+/// what is behind it, so the skeleton stays on one pipeline.
 [[nodiscard]] u32 tint(const u32 argb, const glm::vec4 &color,
-                       const bool premultiplied) noexcept {
+                       const bool premultiplied, const bool additive) noexcept {
   constexpr f32 INV = 1.f / 255.f;
   glm::vec4 rgba(nx::cast<f32>((argb >> 16) & 0xFFu) * INV * color.x,
                  nx::cast<f32>((argb >> 8) & 0xFFu) * INV * color.y,
@@ -33,6 +36,8 @@ source_stamp(const std::span<const nx::string> dependencies) noexcept {
     rgba.x *= rgba.w;
     rgba.y *= rgba.w;
     rgba.z *= rgba.w;
+    if (additive)
+      rgba.w = 0.f;
   }
   return pack_color(rgba);
 }
@@ -41,7 +46,7 @@ source_stamp(const std::span<const nx::string> dependencies) noexcept {
                                       const bool premultiplied) noexcept {
   switch (mode) {
   case ::spine::BlendMode_Additive:
-    return premultiplied ? r2d::MeshBlend::AdditivePremultiplied
+    return premultiplied ? r2d::MeshBlend::NormalPremultiplied
                          : r2d::MeshBlend::Additive;
   case ::spine::BlendMode_Multiply:
     return r2d::MeshBlend::Multiply;
@@ -275,6 +280,7 @@ void SpineSystem::emit_range(EmitChunk &chunk, const usize begin,
       if (command->numVertices == 0 || command->numIndices == 0)
         continue;
 
+      const bool additive = command->blendMode == ::spine::BlendMode_Additive;
       const usize vertices = nx::cast<usize>(command->numVertices);
       chunk.vertices.clear();
       chunk.vertices.reserve(vertices);
@@ -286,7 +292,8 @@ void SpineSystem::emit_range(EmitChunk &chunk, const usize begin,
             node.world[0][0] * x + node.world[1][0] * y + node.world[2][0],
             node.world[0][1] * x + node.world[1][1] * y + node.world[2][1]);
         vertex.uv = glm::vec2(command->uvs[i * 2], command->uvs[i * 2 + 1]);
-        vertex.color = tint(command->colors[i], component.color, premultiplied);
+        vertex.color =
+            tint(command->colors[i], component.color, premultiplied, additive);
         chunk.vertices.push_back(vertex);
       }
 
@@ -296,12 +303,35 @@ void SpineSystem::emit_range(EmitChunk &chunk, const usize begin,
       for (usize i = 0; i < indices; ++i)
         chunk.indices.push_back(nx::cast<u32>(command->indices[i]));
 
-      r2d::MeshDraw &draw = chunk.meshes.append(chunk.vertices, chunk.indices);
-      draw.texture = nx::cast<u32>(
+      const u32 texture = nx::cast<u32>(
           reinterpret_cast<uintptr_t>(command->texture) & 0xFFFFFFFFu);
+      const r2d::MeshBlend blend = blend_of(command->blendMode, premultiplied);
+
+      // spine-cpp also splits where only the slot colour changes; colour is
+      // per vertex here, so such a command joins the draw before it.
+      r2d::MeshChannel &out = chunk.meshes;
+      if (!out.draws.empty()) {
+        r2d::MeshDraw &last = out.draws.back();
+        if (last.texture == texture && last.blend == blend &&
+            last.sort_key == key && last.camera == view.camera &&
+            last.batch == batch && last.material == material_offset &&
+            last.first_index + last.index_count == out.indices.size()) {
+          const u32 base =
+              nx::cast<u32>(out.vertices.size()) - last.vertex_offset;
+          out.vertices.insert(out.vertices.end(), chunk.vertices.begin(),
+                              chunk.vertices.end());
+          for (const u32 index : chunk.indices)
+            out.indices.push_back(index + base);
+          last.index_count += nx::cast<u32>(chunk.indices.size());
+          continue;
+        }
+      }
+
+      r2d::MeshDraw &draw = out.append(chunk.vertices, chunk.indices);
+      draw.texture = texture;
       draw.sort_key = key;
       draw.camera = view.camera;
-      draw.blend = blend_of(command->blendMode, premultiplied);
+      draw.blend = blend;
       draw.batch = batch;
       draw.material = material_offset;
     }
