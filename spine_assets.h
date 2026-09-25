@@ -67,6 +67,11 @@ private:
                                  TextureResolver resolve, SkeletonAsset &out,
                                  nx::string &error);
 
+/// Resolves the atlas pages again, for textures that were still loading when
+/// the skeleton was read. Returns how many pages changed.
+usize refresh_textures(const SkeletonAsset &asset,
+                       const TextureResolver &resolve);
+
 /// Loads one authored .nxspine descriptor in development and its atomic
 /// .nxspine.nxb bundle in Shipping. Relative atlas page paths remain relative
 /// to the descriptor's atlas, so existing texture resolvers need no changes.

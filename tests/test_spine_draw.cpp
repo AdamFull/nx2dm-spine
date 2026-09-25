@@ -14,6 +14,8 @@
 #include "spine/spine_assets.h"
 #include "spine/spine_system.h"
 
+#include <algorithm>
+
 #include <spine/BlendMode.h>
 #include <spine/Animation.h>
 #include <spine/AnimationState.h>
@@ -672,4 +674,47 @@ TEST_CASE("spine: a skeleton stands up from its node, not down") {
   CHECK(lo.y > -100.f);
   CHECK(hi.x - lo.x > 200.f);
   CHECK(hi.y - lo.y > hi.x - lo.x);
+}
+
+TEST_CASE("spine: a page that arrives after the load is drawn, not reloaded") {
+  const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  scene::registry_t registry = bare_registry();
+  spine2d::SpineSystem system;
+  const u32 none = nx::cast<u32>(pack_texture(NX_TEXTURE_NONE, 0));
+  const u32 page = nx::cast<u32>(pack_texture(5, 1));
+  u32 answer = none;
+  system.set_texture_resolver(spine2d::TextureResolver(
+      [&answer](nx::string_view, bool) { return answer; }));
+
+  const scene::Entity e = registry.create();
+  registry.emplace<scene::WorldTransform2D>(e);
+  nx::string error;
+  spine2d::SpineInstance *const instance =
+      system.attach(registry, e, BUNDLE, &error);
+  REQUIRE(instance != nullptr);
+  (void)instance->play("walk");
+  const spine2d::SkeletonAsset first =
+      registry.get<spine2d::SpineComponent>(e).asset;
+
+  const auto textures_drawn = [&] {
+    (void)system.update(registry, 0.1f);
+    r2d::MeshChannel channel;
+    CHECK(system.emit(registry, channel, {}) > 0u);
+    nx::vector<u32> seen;
+    for (const r2d::MeshDraw &draw : channel.draws)
+      if (std::find(seen.begin(), seen.end(), draw.texture) == seen.end())
+        seen.push_back(draw.texture);
+    return seen;
+  };
+  CHECK(textures_drawn() == nx::vector<u32>{none});
+  CHECK(system.refresh_textures() == 0u);
+
+  answer = page;
+  CHECK(system.refresh_textures() == 1u);
+  CHECK(system.refresh_textures() == 0u);
+  CHECK(textures_drawn() == nx::vector<u32>{page});
+  CHECK(registry.get<spine2d::SpineComponent>(e).asset.same_version(first));
 }

@@ -49,8 +49,10 @@ public:
   }
   [[nodiscard]] SkeletonAsset load(nx::string_view path,
                                    nx::string *error = nullptr);
-  [[nodiscard]] usize reload_changed(scene::registry_t &registry,
-                                     bool force = false);
+  [[nodiscard]] usize reload_changed(scene::registry_t &registry);
+  /// Resolves the cached skeletons' atlas pages again, for textures that have
+  /// arrived since they loaded. Returns how many skeletons changed.
+  usize refresh_textures();
   void clear_assets();
 
   usize update(scene::registry_t &registry, const scene::AssetRegistry &assets,

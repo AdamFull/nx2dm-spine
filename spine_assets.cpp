@@ -37,9 +37,6 @@ public:
     const u32 packed = m_resolve ? m_resolve(where, page.pma)
                                  : pack_texture(NX_TEXTURE_NONE, 0);
     page.texture = reinterpret_cast<void *>(static_cast<uintptr_t>(packed));
-    if ((packed >> 16) == NX_TEXTURE_NONE)
-      nx::logw("spine: no texture for '{}'; its slots will draw untextured",
-               where);
   }
 
   void unload(void *) override {}
@@ -209,6 +206,29 @@ std::span<const nx::string> SkeletonAsset::dependencies() const noexcept {
   if (m_version == nullptr)
     return {};
   return {m_version->dependencies.data(), m_version->dependencies.size()};
+}
+
+usize refresh_textures(const SkeletonAsset &asset,
+                       const TextureResolver &resolve) {
+  ::spine::Atlas *const atlas = asset.atlas();
+  if (atlas == nullptr || !resolve)
+    return 0;
+  usize changed = 0;
+  ::spine::Array<::spine::AtlasPage *> &pages = atlas->getPages();
+  for (usize i = 0; i < nx::cast<usize>(pages.size()); ++i) {
+    ::spine::AtlasPage &page = *pages[i];
+    void *const texture = reinterpret_cast<void *>(
+        static_cast<uintptr_t>(resolve(to_view(page.texturePath), page.pma)));
+    changed += page.texture != texture ? 1u : 0u;
+    page.texture = texture;
+  }
+  // Each region took its page's texture when the atlas was read.
+  if (changed != 0) {
+    ::spine::Array<::spine::AtlasRegion *> &regions = atlas->getRegions();
+    for (usize i = 0; i < nx::cast<usize>(regions.size()); ++i)
+      regions[i]->setRendererObject(regions[i]->getPage()->texture);
+  }
+  return changed;
 }
 
 bool load_skeleton(const nx::string_view skeleton_path,

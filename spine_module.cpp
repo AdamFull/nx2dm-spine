@@ -63,7 +63,7 @@ public:
     ctx.schedule().define(
         UPDATE_SYSTEM, sys::SystemFn([this, &ctx](const sys::Context &c) {
           if (m_textures.pump(ctx) != 0)
-            (void)m_system.reload_changed(ctx.scene().registry(), true);
+            (void)m_system.refresh_textures();
           (void)m_system.update(ctx.scene().registry(), ctx.scene().assets(),
                                 c.dt);
         }));

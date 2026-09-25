@@ -116,12 +116,11 @@ SpineInstance *SpineSystem::attach(scene::registry_t &registry,
   return &registry.emplace_or_replace<SpineInstance>(e, asset, e);
 }
 
-usize SpineSystem::reload_changed(scene::registry_t &registry,
-                                  const bool force) {
+usize SpineSystem::reload_changed(scene::registry_t &registry) {
   usize count = 0;
   for (auto &[path, cached] : m_assets) {
     const u64 changed = source_stamp(cached.asset.dependencies());
-    if (!force && changed == cached.stamp)
+    if (changed == cached.stamp)
       continue;
     cached.stamp = changed;
 
@@ -143,6 +142,14 @@ usize SpineSystem::reload_changed(scene::registry_t &registry,
     nx::logd("spine: reloaded '{}'", path);
   }
   return count;
+}
+
+usize SpineSystem::refresh_textures() {
+  usize changed = 0;
+  for (auto &[_, cached] : m_assets)
+    changed +=
+        spine2d::refresh_textures(cached.asset, m_resolve) != 0 ? 1u : 0u;
+  return changed;
 }
 
 void SpineSystem::clear_assets() {
