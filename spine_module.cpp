@@ -82,6 +82,10 @@ public:
           (void)m_system.emit(ctx.scene().registry(), *meshes, view);
         }));
     ctx.schedule().add(sys::Stage::Present, EMIT_SYSTEM);
+    ctx.schedule()
+        .declare<const SpineComponent, SpineInstance,
+                 const scene::WorldTransform2D>(EMIT_SYSTEM);
+    ctx.schedule().declare_exclusive(EMIT_SYSTEM, ModuleContext::MESH_CHANNEL);
 
     nx::logi("spine: attached");
     return true;
