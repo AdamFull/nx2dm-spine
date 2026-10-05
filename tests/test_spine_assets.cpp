@@ -39,7 +39,7 @@ struct Mounted {
 struct Resolver {
   nx::vector<nx::string> asked;
   bool saw_premultiplied = false;
-  u32 answer = 0;
+  NxTexture2D<float4> answer{};
 
   [[nodiscard]] spine2d::TextureResolver fn() {
     return spine2d::TextureResolver(
@@ -65,7 +65,7 @@ TEST_CASE("spine: a skeleton loads through the VFS") {
   REQUIRE(mounted.ok());
 
   Resolver resolver;
-  resolver.answer = pack_texture(7, 1);
+  resolver.answer = NxTexture2D<float4>::from_indices(7, 1);
   spine2d::SkeletonAsset asset;
   nx::string error;
   REQUIRE(
@@ -90,7 +90,7 @@ TEST_CASE("spine: an authored descriptor loads both related resources") {
   REQUIRE(mounted.ok());
 
   Resolver resolver;
-  resolver.answer = pack_texture(7, 1);
+  resolver.answer = NxTexture2D<float4>::from_indices(7, 1);
   spine2d::SkeletonAsset asset;
   nx::string error;
   REQUIRE(spine2d::load_skeleton(BUNDLE, resolver.fn(), asset, error));
@@ -106,7 +106,7 @@ TEST_CASE("spine: the atlas asks the host for its pages, and is told") {
   REQUIRE(mounted.ok());
 
   Resolver resolver;
-  resolver.answer = pack_texture(3, 2);
+  resolver.answer = NxTexture2D<float4>::from_indices(3, 2);
   spine2d::SkeletonAsset asset;
   nx::string error;
   REQUIRE(
@@ -125,7 +125,7 @@ TEST_CASE("spine: a page the host cannot back still loads, untextured") {
   REQUIRE(mounted.ok());
 
   Resolver resolver;
-  resolver.answer = pack_texture(NX_TEXTURE_NONE, 0);
+  resolver.answer = NxTexture2D<float4>::none();
   spine2d::SkeletonAsset asset;
   nx::string error;
   REQUIRE(

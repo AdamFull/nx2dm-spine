@@ -34,8 +34,8 @@ public:
       known |= held == where;
     if (!known)
       m_pages.push_back(nx::string(where));
-    const u32 packed = m_resolve ? m_resolve(where, page.pma)
-                                 : pack_texture(NX_TEXTURE_NONE, 0);
+    const u32 packed = m_resolve ? m_resolve(where, page.pma).value
+                                 : NxTexture2D<float4>::none().value;
     page.texture = reinterpret_cast<void *>(static_cast<uintptr_t>(packed));
   }
 
@@ -217,8 +217,8 @@ usize refresh_textures(const SkeletonAsset &asset,
   ::spine::Array<::spine::AtlasPage *> &pages = atlas->getPages();
   for (usize i = 0; i < nx::cast<usize>(pages.size()); ++i) {
     ::spine::AtlasPage &page = *pages[i];
-    void *const texture = reinterpret_cast<void *>(
-        static_cast<uintptr_t>(resolve(to_view(page.texturePath), page.pma)));
+    void *const texture = reinterpret_cast<void *>(static_cast<uintptr_t>(
+        resolve(to_view(page.texturePath), page.pma).value));
     changed += page.texture != texture ? 1u : 0u;
     page.texture = texture;
   }

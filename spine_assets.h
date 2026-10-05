@@ -3,6 +3,7 @@
 #include "core/foundation/core/callable.h"
 #include "core/foundation/core/foundation.h"
 #include "core/foundation/strings/utf8_string.h"
+#include "rendering/rhi/shaders/nx_interop.h"
 
 #include <span>
 
@@ -15,7 +16,7 @@ class AnimationStateData;
 namespace nxe::spine2d {
 
 using TextureResolver =
-    nx::function<u32(nx::string_view path, bool premultiplied)>;
+    nx::function<NxTexture2D<float4>(nx::string_view path, bool premultiplied)>;
 
 namespace detail {
 class SkeletonAssetData;

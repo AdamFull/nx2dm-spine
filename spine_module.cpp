@@ -38,9 +38,10 @@ public:
                                               const bool premultiplied) {
           const rhi::TextureHandle texture = m_textures.resolve(ctx, path);
           return texture.valid()
-                     ? pack_texture(ctx.device().texture_index(texture),
-                                    sampler, premultiplied)
-                     : pack_texture(NX_TEXTURE_NONE, 0);
+                     ? NxTexture2D<float4>::from_indices(
+                           ctx.device().texture_index(texture), sampler,
+                           (premultiplied ? NX_TEXTURE_PREMULTIPLIED : 0u))
+                     : NxTexture2D<float4>::none();
         }));
     if (!ctx.service_registrar().provide(SERVICE, PROVIDED_SERVICES[0].version,
                                          m_system)) {

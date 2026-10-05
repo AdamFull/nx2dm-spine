@@ -32,7 +32,8 @@ namespace r2d = nxe::r2d;
 
 struct Loaded {
   explicit Loaded(const nx::string_view atlas = ATLAS_PMA,
-                  const u32 texture = nx::cast<u32>(pack_texture(7, 1))) {
+                  const NxTexture2D<float4> texture =
+                      NxTexture2D<float4>::from_indices(7, 1)) {
     nx::vfs::initialize();
     m_device = nx::vfs::make_host_device(
         nx::fs::path_view(nxm::spine_test::fixture_dir()));
@@ -226,7 +227,7 @@ TEST_CASE("spine: every draw of one skeleton carries the same key") {
   for (const r2d::MeshDraw &draw : channel.draws) {
     CHECK(draw.sort_key == expected);
     CHECK(draw.camera == 2u);
-    CHECK(draw.texture == pack_texture(7, 1));
+    CHECK(draw.texture == NxTexture2D<float4>::from_indices(7, 1));
   }
 
   usize multiply = 0;
@@ -435,7 +436,7 @@ TEST_CASE("spine: a page nobody could back draws untextured") {
   r2d::MeshChannel channel;
   REQUIRE(system.emit(registry, channel, {}) > 0u);
   for (const r2d::MeshDraw &draw : channel.draws)
-    CHECK((draw.texture >> 16) == NX_TEXTURE_NONE);
+    CHECK(draw.texture.texture_index() == NX_TEXTURE_NONE);
 
   registry.clear();
   asset = spine2d::SkeletonAsset();
@@ -513,7 +514,7 @@ TEST_CASE("spine: replacing a component asset rebuilds a coherent pose") {
   REQUIRE(spine2d::load_skeleton(
       SKELETON, ATLAS_STRAIGHT,
       spine2d::TextureResolver([](nx::string_view, bool) {
-        return nx::cast<u32>(pack_texture(8, 1));
+        return NxTexture2D<float4>::from_indices(8, 1);
       }),
       replacement, error));
   REQUIRE_FALSE(replacement.premultiplied());
@@ -683,9 +684,9 @@ TEST_CASE("spine: a page that arrives after the load is drawn, not reloaded") {
 
   scene::registry_t registry = bare_registry();
   spine2d::SpineSystem system;
-  const u32 none = nx::cast<u32>(pack_texture(NX_TEXTURE_NONE, 0));
-  const u32 page = nx::cast<u32>(pack_texture(5, 1));
-  u32 answer = none;
+  const NxTexture2D<float4> none = NxTexture2D<float4>::none();
+  const NxTexture2D<float4> page = NxTexture2D<float4>::from_indices(5, 1);
+  NxTexture2D<float4> answer = none;
   system.set_texture_resolver(spine2d::TextureResolver(
       [&answer](nx::string_view, bool) { return answer; }));
 
@@ -703,18 +704,18 @@ TEST_CASE("spine: a page that arrives after the load is drawn, not reloaded") {
     (void)system.update(registry, 0.1f);
     r2d::MeshChannel channel;
     CHECK(system.emit(registry, channel, {}) > 0u);
-    nx::vector<u32> seen;
+    nx::vector<NxTexture2D<float4>> seen;
     for (const r2d::MeshDraw &draw : channel.draws)
       if (std::find(seen.begin(), seen.end(), draw.texture) == seen.end())
         seen.push_back(draw.texture);
     return seen;
   };
-  CHECK(textures_drawn() == nx::vector<u32>{none});
+  CHECK(textures_drawn() == nx::vector<NxTexture2D<float4>>{none});
   CHECK(system.refresh_textures() == 0u);
 
   answer = page;
   CHECK(system.refresh_textures() == 1u);
   CHECK(system.refresh_textures() == 0u);
-  CHECK(textures_drawn() == nx::vector<u32>{page});
+  CHECK(textures_drawn() == nx::vector<NxTexture2D<float4>>{page});
   CHECK(registry.get<spine2d::SpineComponent>(e).asset.same_version(first));
 }

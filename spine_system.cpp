@@ -310,8 +310,10 @@ void SpineSystem::emit_range(EmitChunk &chunk, const usize begin,
       for (usize i = 0; i < indices; ++i)
         chunk.indices.push_back(nx::cast<u32>(command->indices[i]));
 
-      const u32 texture = nx::cast<u32>(
-          reinterpret_cast<uintptr_t>(command->texture) & 0xFFFFFFFFu);
+      // The atlas page holds its texture's word as spine's renderer object.
+      const NxTexture2D<float4> texture =
+          NxTexture2D<float4>::from_packed(nx::cast<u32>(
+              reinterpret_cast<uintptr_t>(command->texture) & 0xFFFFFFFFu));
       const r2d::MeshBlend blend = blend_of(command->blendMode, premultiplied);
 
       // spine-cpp also splits where only the slot colour changes; colour is

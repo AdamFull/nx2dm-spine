@@ -32,8 +32,9 @@ struct Loaded {
     nx::string error;
     m_ok = spine2d::load_skeleton(
         SKELETON, ATLAS_PMA,
-        spine2d::TextureResolver(
-            [](nx::string_view, bool) { return pack_texture(1, 0); }),
+        spine2d::TextureResolver([](nx::string_view, bool) {
+          return NxTexture2D<float4>::from_indices(1, 0);
+        }),
         asset, error);
   }
   ~Loaded() {
