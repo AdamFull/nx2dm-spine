@@ -184,13 +184,13 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
     stream.build({channel.draws.data(), channel.draws.size()});
     const rhi::BufferHandle records =
         upload("spine draws", stream.records.data(),
-               nx::cast<u64>(stream.records.size()) * sizeof(GpuMeshDraw));
+               nx::cast<u64>(stream.records.size()) * sizeof(GpuMeshDraw2D));
     const rhi::BufferHandle commands =
         upload("spine draw commands", stream.commands.data(),
                nx::cast<u64>(stream.commands.size()) *
                    sizeof(rhi::DrawIndirectCommand));
 
-    GpuMeshPush push;
+    GpuMesh2DPush push;
     push.cameras = {device.buffer_address(cameras)};
     push.vertices = {device.buffer_address(vertices)};
     push.indices = {device.buffer_address(indices)};
