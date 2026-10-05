@@ -39,7 +39,7 @@ source_stamp(const std::span<const nx::string> dependencies) noexcept {
     if (additive)
       rgba.w = 0.f;
   }
-  return pack_color(rgba);
+  return nx_pack_rgba8(rgba);
 }
 
 [[nodiscard]] r2d::MeshBlend blend_of(const ::spine::BlendMode mode,

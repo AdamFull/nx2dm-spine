@@ -5,7 +5,7 @@
 
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/vfs/vfs.h"
-#include "rendering/render2d/render_interop.h"
+#include "rendering/rhi/shaders/nx_interop.h"
 #include "spine/spine_assets.h"
 #include "spine/spine_platform.h"
 

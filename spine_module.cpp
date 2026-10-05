@@ -8,7 +8,7 @@
 #include "app/module_system/module.h"
 
 #include "core/foundation/diagnostics/log.h"
-#include "rendering/render2d/render_interop.h"
+#include "rendering/rhi/shaders/nx_interop.h"
 #include "scene/sampler.h"
 
 namespace nxe::spine2d {

@@ -7,7 +7,7 @@
 #include "core/foundation/threading/thread_pool.h"
 #include "core/foundation/vfs/vfs.h"
 #include "rendering/render2d/material_system.h"
-#include "rendering/render2d/render_interop.h"
+#include "rendering/render2d/scene_interop.h"
 #include "rendering/render2d/scene_renderer.h"
 #include "scene/animation/animation_graph.h"
 #include "scene/asset/assets.h"
