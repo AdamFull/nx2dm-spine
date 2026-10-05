@@ -27,15 +27,6 @@ namespace rhi = nxe::rhi;
 
 constexpr u32 TARGET = 256;
 
-struct MeshPush {
-  u64 cameras = 0;
-  u64 vertices = 0;
-  u64 indices = 0;
-  u64 materials = 0;
-  u64 draws = 0;
-  ::MeshPushFields fields = {};
-};
-
 struct TestDevice {
   rhi::Device device;
   bool ready = false;
@@ -199,11 +190,11 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
                nx::cast<u64>(stream.commands.size()) *
                    sizeof(rhi::DrawIndirectCommand));
 
-    MeshPush push;
-    push.cameras = device.buffer_address(cameras);
-    push.vertices = device.buffer_address(vertices);
-    push.indices = device.buffer_address(indices);
-    push.draws = device.buffer_address(records);
+    GpuMeshPush push;
+    push.cameras = {device.buffer_address(cameras)};
+    push.vertices = {device.buffer_address(vertices)};
+    push.indices = {device.buffer_address(indices)};
+    push.draws = {device.buffer_address(records)};
 
     rhi::CommandContext cmd;
     REQUIRE(device.begin_headless_frame(cmd));
