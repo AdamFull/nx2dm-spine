@@ -152,6 +152,35 @@ usize SpineSystem::refresh_textures() {
   return changed;
 }
 
+usize SpineSystem::release_unused(scene::registry_t &registry) {
+  usize released = 0;
+  for (auto it = m_assets.begin(); it != m_assets.end();) {
+    bool used = false;
+    registry.view<const SpineComponent>().each(
+        [&](const scene::Entity, const SpineComponent &component) {
+          used = used || component.asset.same_version(it->second.asset);
+        });
+    if (used) {
+      ++it;
+      continue;
+    }
+    it = m_assets.erase(it);
+    ++released;
+  }
+  return released;
+}
+
+usize SpineSystem::textures_in_use(scene::registry_t &registry,
+                                   nx::vector<nx::string_view> &out) const {
+  usize components = 0;
+  registry.view<const SpineComponent>().each(
+      [&](const scene::Entity, const SpineComponent &component) {
+        ++components;
+        texture_paths(component.asset, out);
+      });
+  return components;
+}
+
 void SpineSystem::clear_assets() {
   m_assets.clear();
   m_resolve = {};

@@ -67,6 +67,7 @@ public:
             (void)m_system.refresh_textures();
           (void)m_system.update(ctx.scene().registry(), ctx.scene().assets(),
                                 c.dt);
+          release_unused(ctx);
         }));
     ctx.schedule().add(sys::Stage::Update, UPDATE_SYSTEM);
 
@@ -101,8 +102,33 @@ public:
   }
 
 private:
+  /// Lets go of the skeletons and texture pages no component uses any more,
+  /// once a component has come or gone: an unloaded level must not keep them.
+  void release_unused(ModuleContext &ctx) {
+    m_in_use.clear();
+    const usize components =
+        m_system.textures_in_use(ctx.scene().registry(), m_in_use);
+    if (components == m_swept_components)
+      return;
+    m_swept_components = components;
+    const usize skeletons = m_system.release_unused(ctx.scene().registry());
+    const usize pages =
+        m_textures.release_unused(ctx, [this](const nx::string_view path) {
+          for (const nx::string_view used : m_in_use)
+            if (used == path)
+              return true;
+          return false;
+        });
+    if (skeletons != 0 || pages != 0)
+      nx::logd("spine: released {} skeletons and {} texture pages no "
+               "component uses",
+               skeletons, pages);
+  }
+
   SpineSystem m_system;
   AsyncTextureSet m_textures;
+  nx::vector<nx::string_view> m_in_use;
+  usize m_swept_components = 0;
 };
 
 } // namespace

@@ -677,6 +677,54 @@ TEST_CASE("spine: a skeleton stands up from its node, not down") {
   CHECK(hi.y - lo.y > hi.x - lo.x);
 }
 
+TEST_CASE("spine: a cached skeleton no component uses is let go, with its "
+          "pages") {
+  const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  scene::registry_t registry = bare_registry();
+  spine2d::SpineSystem system;
+  const auto attach = [&] {
+    const scene::Entity e = registry.create();
+    registry.emplace<scene::WorldTransform2D>(e);
+    nx::string error;
+    REQUIRE(system.attach(registry, e, BUNDLE, &error) != nullptr);
+    return e;
+  };
+  const auto pages = [&] {
+    nx::vector<nx::string_view> paths;
+    (void)system.textures_in_use(registry, paths);
+    return paths.size();
+  };
+
+  const scene::Entity first = attach();
+  const scene::Entity second = attach();
+  const usize per_skeleton = pages() / 2u;
+  REQUIRE(per_skeleton >= 1u);
+  CHECK(system.release_unused(registry) == 0u);
+
+  registry.destroy(first);
+  CHECK(system.release_unused(registry) == 0u);
+  CHECK(pages() == per_skeleton);
+
+  // Attached by its asset rather than its path, it still holds the cache.
+  const scene::Entity by_asset = registry.create();
+  registry.emplace<scene::WorldTransform2D>(by_asset);
+  (void)system.attach(registry, by_asset, system.load(BUNDLE));
+  registry.destroy(second);
+  CHECK(system.release_unused(registry) == 0u);
+
+  registry.destroy(by_asset);
+  CHECK(pages() == 0u);
+  CHECK(system.release_unused(registry) == 1u);
+  CHECK(system.release_unused(registry) == 0u);
+
+  const scene::Entity again = attach();
+  CHECK(registry.get<spine2d::SpineComponent>(again).asset.valid());
+  CHECK(pages() == per_skeleton);
+}
+
 TEST_CASE("spine: a page that arrives after the load is drawn, not reloaded") {
   const Loaded loaded;
   NX_REQUIRE_FIXTURE();

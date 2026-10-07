@@ -231,6 +231,16 @@ usize refresh_textures(const SkeletonAsset &asset,
   return changed;
 }
 
+void texture_paths(const SkeletonAsset &asset,
+                   nx::vector<nx::string_view> &out) {
+  ::spine::Atlas *const atlas = asset.atlas();
+  if (atlas == nullptr)
+    return;
+  ::spine::Array<::spine::AtlasPage *> &pages = atlas->getPages();
+  for (usize i = 0; i < nx::cast<usize>(pages.size()); ++i)
+    out.push_back(to_view(pages[i]->texturePath));
+}
+
 bool load_skeleton(const nx::string_view skeleton_path,
                    const nx::string_view atlas_path, TextureResolver resolve,
                    SkeletonAsset &out, nx::string &error) {

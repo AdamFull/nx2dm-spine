@@ -54,6 +54,14 @@ public:
   /// arrived since they loaded. Returns how many skeletons changed.
   usize refresh_textures();
   void clear_assets();
+  /// Drops the cached skeletons no component uses, so they and the textures
+  /// only they need can go; attaching one again loads it afresh. Returns how
+  /// many were dropped.
+  usize release_unused(scene::registry_t &registry);
+  /// Appends the atlas page textures of every attached skeleton, cached or
+  /// not, and returns how many components there are.
+  usize textures_in_use(scene::registry_t &registry,
+                        nx::vector<nx::string_view> &out) const;
 
   usize update(scene::registry_t &registry, const scene::AssetRegistry &assets,
                f32 dt);

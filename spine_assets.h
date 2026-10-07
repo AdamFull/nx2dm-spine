@@ -73,6 +73,11 @@ private:
 usize refresh_textures(const SkeletonAsset &asset,
                        const TextureResolver &resolve);
 
+/// Appends the texture path of each of the skeleton's atlas pages. The views
+/// last as long as the asset's version does.
+void texture_paths(const SkeletonAsset &asset,
+                   nx::vector<nx::string_view> &out);
+
 /// Loads one authored .nxspine descriptor in development and its atomic
 /// .nxspine.nxb bundle in Shipping. Relative atlas page paths remain relative
 /// to the descriptor's atlas, so existing texture resolvers need no changes.
