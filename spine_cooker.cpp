@@ -4,8 +4,8 @@
 
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/serialization/json_document.h"
+#include "core/foundation/strings/format.h"
 
-#include <cstdio>
 #include <cstring>
 
 namespace assetc {
@@ -94,9 +94,8 @@ struct Inputs {
   Inputs inputs;
   nx::string error;
   if (!read_inputs(context.source, inputs, error)) {
-    std::fprintf(stderr, "assetc: Spine '%.*s' is invalid: %.*s\n",
-                 static_cast<int>(context.source.size()), context.source.data(),
-                 static_cast<int>(error.size()), error.data());
+    context.report(
+        nx::format("Spine '{}' is invalid: {}", context.source, error));
     return false;
   }
   const auto cooked = nxe::spine2d::encode_spine_bundle(
