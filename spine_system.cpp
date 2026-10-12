@@ -14,6 +14,8 @@
 #include <spine/Skeleton.h>
 #include <spine/SkeletonRenderer.h>
 
+#include <limits>
+
 namespace nxe::spine2d {
 namespace {
 
@@ -64,6 +66,89 @@ source_stamp(const std::span<const nx::string> dependencies) noexcept {
 SpineSystem::~SpineSystem() {
   for (const EmitChunk &chunk : m_emit_chunks)
     delete chunk.renderer;
+  delete m_pick_renderer;
+}
+
+namespace {
+
+/// Whether @p p is in the triangle @p a, @p b, @p c, either way round.
+[[nodiscard]] bool in_triangle(const glm::vec2 p, const glm::vec2 a,
+                               const glm::vec2 b, const glm::vec2 c) {
+  const auto side = [](const glm::vec2 from, const glm::vec2 to,
+                       const glm::vec2 at) {
+    return (to.x - from.x) * (at.y - from.y) -
+           (to.y - from.y) * (at.x - from.x);
+  };
+  const f32 ab = side(a, b, p);
+  const f32 bc = side(b, c, p);
+  const f32 ca = side(c, a, p);
+  return (ab >= 0.f && bc >= 0.f && ca >= 0.f) ||
+         (ab <= 0.f && bc <= 0.f && ca <= 0.f);
+}
+
+} // namespace
+
+void SpineSystem::pick(const scene::registry_t &registry,
+                       const glm::vec2 world_point, const PickFn found) {
+  if (m_pick_renderer == nullptr)
+    m_pick_renderer = new ::spine::SkeletonRenderer();
+  registry
+      .view<const SpineComponent, const SpineInstance,
+            const scene::WorldTransform2D>()
+      .each([&](const scene::Entity e, const SpineComponent &component,
+                const SpineInstance &instance,
+                const scene::WorldTransform2D &node) {
+        if (!component.visible || !instance.valid())
+          return;
+        // The renderer's positions are in the skeleton's space.
+        const glm::vec2 local =
+            glm::vec2(glm::inverse(node.world) * glm::vec3(world_point, 1.f));
+        for (const ::spine::RenderCommand *command =
+                 m_pick_renderer->render(*instance.skeleton());
+             command != nullptr; command = command->next) {
+          const auto at = [&](const usize index) {
+            const usize i = command->indices[index];
+            return glm::vec2(command->positions[i * 2],
+                             command->positions[i * 2 + 1]);
+          };
+          for (usize t = 0; t + 2 < nx::cast<usize>(command->numIndices);
+               t += 3)
+            if (in_triangle(local, at(t), at(t + 1), at(t + 2))) {
+              found(e, component.layer);
+              return;
+            }
+        }
+      });
+}
+
+void SpineSystem::pick_within(const scene::registry_t &registry,
+                              const glm::vec2 lo, const glm::vec2 hi,
+                              const PickFn found) {
+  if (m_pick_renderer == nullptr)
+    m_pick_renderer = new ::spine::SkeletonRenderer();
+  registry
+      .view<const SpineComponent, const SpineInstance,
+            const scene::WorldTransform2D>()
+      .each([&](const scene::Entity e, const SpineComponent &component,
+                const SpineInstance &instance,
+                const scene::WorldTransform2D &node) {
+        if (!component.visible || !instance.valid())
+          return;
+        glm::vec2 min{std::numeric_limits<f32>::max()};
+        glm::vec2 max{std::numeric_limits<f32>::lowest()};
+        for (const ::spine::RenderCommand *command =
+                 m_pick_renderer->render(*instance.skeleton());
+             command != nullptr; command = command->next)
+          for (usize i = 0; i < nx::cast<usize>(command->numVertices); ++i) {
+            const glm::vec2 world = glm::vec2(
+                node.world * glm::vec3(command->positions[i * 2],
+                                       command->positions[i * 2 + 1], 1.f));
+            min = glm::min(min, world);
+            max = glm::max(max, world);
+          }
+        if (min.x <= hi.x && max.x >= lo.x && min.y <= hi.y && max.y >= lo.y)
+          found(e, component.layer);
+      });
 }
 
 void SpineSystem::register_components(scene::registry_t &registry) {

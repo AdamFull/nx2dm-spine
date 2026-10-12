@@ -767,3 +767,46 @@ TEST_CASE("spine: a page that arrives after the load is drawn, not reloaded") {
   CHECK(textures_drawn() == nx::vector<NxTexture2D<float4>>{page});
   CHECK(registry.get<spine2d::SpineComponent>(e).asset.same_version(first));
 }
+
+TEST_CASE("spine: a skeleton is picked where it draws, and not beside it") {
+  const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  scene::registry_t registry = bare_registry();
+  spine2d::SpineSystem system;
+  const scene::Entity e = place(registry, system, loaded.asset, {40.f, 10.f});
+  REQUIRE(system.update(registry, 0.1f) == 1u);
+  r2d::MeshChannel channel;
+  REQUIRE(system.emit(registry, channel, {}) > 0u);
+  // The middle of the first triangle it draws.
+  const r2d::MeshDraw &draw = channel.draws.front();
+  REQUIRE(draw.index_count >= 3u);
+  glm::vec2 inside{0.f, 0.f};
+  for (u32 i = 0; i < 3u; ++i)
+    inside += channel
+                  .vertices[draw.vertex_offset +
+                            channel.indices[draw.first_index + i]]
+                  .position;
+  inside /= 3.f;
+
+  nx::vector<scene::Entity> found;
+  const auto collect = [&](const scene::Entity hit, i32) {
+    found.push_back(hit);
+  };
+  system.pick(registry, inside, collect);
+  REQUIRE(found.size() == 1u);
+  CHECK(found.front() == e);
+  found.clear();
+  system.pick(registry, {-5000.f, -5000.f}, collect);
+  CHECK(found.empty());
+  system.pick_within(registry, inside - glm::vec2(0.01f),
+                     inside + glm::vec2(0.01f), collect);
+  REQUIRE(found.size() == 1u);
+  CHECK(found.front() == e);
+  found.clear();
+
+  registry.get<spine2d::SpineComponent>(e).visible = false;
+  system.pick(registry, inside, collect);
+  CHECK(found.empty());
+}

@@ -10,6 +10,9 @@
 #include "core/foundation/diagnostics/log.h"
 #include "rendering/rhi/shaders/nx_interop.h"
 #include "scene/sampler.h"
+#if NX_WITH_EDITOR
+#include "editor/pick.h"
+#endif
 
 namespace nxe::spine2d {
 namespace {
@@ -49,6 +52,24 @@ public:
       return false;
     }
     SpineSystem::register_components(ctx.scene().registry());
+#if NX_WITH_EDITOR
+    ctx.add_picker(
+        {.at = editor::Picker2D::At([this](const scene::Scene &scene,
+                                           const glm::vec2 point,
+                                           nx::vector<editor::PickHit> &out) {
+           m_system.pick(scene.registry(), point,
+                         [&](const scene::Entity e, const i32 layer) {
+                           out.push_back({e, layer});
+                         });
+         }),
+         .within = editor::Picker2D::Within(
+             [this](const scene::Scene &scene, const glm::vec2 lo,
+                    const glm::vec2 hi, nx::vector<scene::Entity> &out) {
+               m_system.pick_within(
+                   scene.registry(), lo, hi,
+                   [&](const scene::Entity e, i32) { out.push_back(e); });
+             })});
+#endif
     return true;
   }
 

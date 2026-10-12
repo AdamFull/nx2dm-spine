@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/foundation/containers/string_map.h"
+#include "core/foundation/core/callable.h"
 #include "core/foundation/threading/thread_pool.h"
 #include "rendering/render2d/mesh_channel.h"
 #include "spine/spine_component.h"
@@ -70,6 +71,16 @@ public:
   usize emit(scene::registry_t &registry, r2d::MeshChannel &out,
              const SpineView &view);
 
+  using PickFn = nx::function_ref<void(scene::Entity, i32 layer)>;
+  /// Each visible skeleton of @p registry whose drawn triangles hold
+  /// @p world_point, with its component's layer, for the editor's picking.
+  void pick(const scene::registry_t &registry, glm::vec2 world_point,
+            PickFn found);
+  /// Each visible skeleton whose drawn vertices' bounds overlap the world
+  /// rectangle from @p lo to @p hi.
+  void pick_within(const scene::registry_t &registry, glm::vec2 lo,
+                   glm::vec2 hi, PickFn found);
+
   [[nodiscard]] std::span<const SpineEvent> events() const noexcept {
     return {m_events.data(), m_events.size()};
   }
@@ -104,6 +115,8 @@ private:
   void emit_range(EmitChunk &chunk, usize begin, usize end,
                   const SpineView &view) const;
 
+  /// Renders skeletons for picking, apart from the emit chunks' renderers.
+  ::spine::SkeletonRenderer *m_pick_renderer = nullptr;
   TextureResolver m_resolve;
   nx::string_map<CachedAsset> m_assets;
   nx::thread_pool *m_threads = nullptr;
