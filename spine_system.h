@@ -6,6 +6,8 @@
 #include "rendering/render2d/mesh_channel.h"
 #include "spine/spine_component.h"
 
+#include <span>
+
 namespace spine {
 class SkeletonRenderer;
 }
@@ -50,14 +52,19 @@ public:
   }
   [[nodiscard]] SkeletonAsset load(nx::string_view path,
                                    nx::string *error = nullptr);
+  /// Reloads the cached skeletons whose sources changed and points the
+  /// components of @p registries that use them at the new ones.
+  [[nodiscard]] usize
+  reload_changed(std::span<scene::registry_t *const> registries);
   [[nodiscard]] usize reload_changed(scene::registry_t &registry);
   /// Resolves the cached skeletons' atlas pages again, for textures that have
   /// arrived since they loaded. Returns how many skeletons changed.
   usize refresh_textures();
   void clear_assets();
-  /// Drops the cached skeletons no component uses, so they and the textures
-  /// only they need can go; attaching one again loads it afresh. Returns how
-  /// many were dropped.
+  /// Drops the cached skeletons no component of @p registries uses, so they
+  /// and the textures only they need can go; attaching one again loads it
+  /// afresh. Returns how many were dropped.
+  usize release_unused(std::span<scene::registry_t *const> registries);
   usize release_unused(scene::registry_t &registry);
   /// Appends the atlas page textures of every attached skeleton, cached or
   /// not, and returns how many components there are.

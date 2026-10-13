@@ -104,3 +104,35 @@ TEST_CASE("spine: a preview scene's skeletons play while the game is paused, "
   asset = spine2d::SkeletonAsset();
   nx::vfs::unmount(fixture);
 }
+
+TEST_CASE("spine: a skeleton a preview shows stays cached when the game's "
+          "last one goes") {
+  NX_REQUIRE_FIXTURE();
+  Harness h;
+  if (!h.ready)
+    SKIP("no usable RHI device");
+  spine2d::SpineSystem *const system = spine2d::system(*h.engine);
+  REQUIRE(system != nullptr);
+  const nx::vfs::MountId fixture = nx::vfs::mount(
+      "/", nx::vfs::make_host_device(nx::fs::path_view(fixture_dir())), 100);
+  REQUIRE(fixture.valid());
+
+  scene::Scene &preview = *h.engine->scene(h.engine->create_preview_scene());
+  const scene::Entity shown = preview.create_node("shown");
+  nx::string error;
+  REQUIRE(system->attach(preview.registry(), shown, BUNDLE, &error) != nullptr);
+  scene::Scene &game = h.engine->scene();
+  const scene::Entity played = game.create_node("played");
+  REQUIRE(system->attach(game.registry(), played, BUNDLE, &error) != nullptr);
+  for (u32 i = 0; i < 3; ++i)
+    h.engine->on_tick(h.platform, 1.0 / 60.0);
+
+  // The game's goes, which sweeps the cache: the preview's still uses it.
+  game.destroy_node(played);
+  for (u32 i = 0; i < 3; ++i)
+    h.engine->on_tick(h.platform, 1.0 / 60.0);
+  const spine2d::SkeletonAsset again = system->load(BUNDLE);
+  CHECK(again.same_version(
+      preview.registry().get<spine2d::SpineComponent>(shown).asset));
+  nx::vfs::unmount(fixture);
+}

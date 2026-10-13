@@ -82,7 +82,7 @@ public:
   }
 
   void on_hot_reload(ModuleContext &ctx) override {
-    (void)m_system.reload_changed(ctx.scene().registry());
+    (void)m_system.reload_changed(registries(ctx));
   }
 
   bool on_attach(ModuleContext &ctx) override {
@@ -136,12 +136,14 @@ private:
   /// once a component has come or gone: an unloaded level must not keep them.
   void release_unused(ModuleContext &ctx) {
     m_in_use.clear();
-    const usize components =
-        m_system.textures_in_use(ctx.scene().registry(), m_in_use);
+    const std::span<scene::registry_t *const> all = registries(ctx);
+    usize components = 0;
+    for (scene::registry_t *const registry : all)
+      components += m_system.textures_in_use(*registry, m_in_use);
     if (components == m_swept_components)
       return;
     m_swept_components = components;
-    const usize skeletons = m_system.release_unused(ctx.scene().registry());
+    const usize skeletons = m_system.release_unused(all);
     const usize pages =
         m_textures.release_unused(ctx, [this](const nx::string_view path) {
           for (const nx::string_view used : m_in_use)
@@ -155,9 +157,19 @@ private:
                skeletons, pages);
   }
 
+  /// Every live scene's registry: a sweep or a reload covers them all.
+  std::span<scene::registry_t *const> registries(ModuleContext &ctx) {
+    m_registries.clear();
+    ctx.for_each_scene([this](scene::Scene &scene) {
+      m_registries.push_back(&scene.registry());
+    });
+    return {m_registries.data(), m_registries.size()};
+  }
+
   SpineSystem m_system;
   AsyncTextureSet m_textures;
   nx::vector<nx::string_view> m_in_use;
+  nx::vector<scene::registry_t *> m_registries;
   usize m_swept_components = 0;
 };
 

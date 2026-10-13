@@ -202,6 +202,12 @@ SpineInstance *SpineSystem::attach(scene::registry_t &registry,
 }
 
 usize SpineSystem::reload_changed(scene::registry_t &registry) {
+  scene::registry_t *const one[] = {&registry};
+  return reload_changed(one);
+}
+
+usize SpineSystem::reload_changed(
+    const std::span<scene::registry_t *const> registries) {
   usize count = 0;
   for (auto &[path, cached] : m_assets) {
     const u64 changed = source_stamp(cached.asset.dependencies());
@@ -218,11 +224,12 @@ usize SpineSystem::reload_changed(scene::registry_t &registry) {
     }
     cached.asset = fresh;
     cached.stamp = source_stamp(fresh.dependencies());
-    registry.view<SpineComponent>().each(
-        [&](const scene::Entity, SpineComponent &component) {
-          if (component.source == path)
-            component.asset = fresh;
-        });
+    for (scene::registry_t *const registry : registries)
+      registry->view<SpineComponent>().each(
+          [&](const scene::Entity, SpineComponent &component) {
+            if (component.source == path)
+              component.asset = fresh;
+          });
     ++count;
     nx::logd("spine: reloaded '{}'", path);
   }
@@ -238,13 +245,20 @@ usize SpineSystem::refresh_textures() {
 }
 
 usize SpineSystem::release_unused(scene::registry_t &registry) {
+  scene::registry_t *const one[] = {&registry};
+  return release_unused(one);
+}
+
+usize SpineSystem::release_unused(
+    const std::span<scene::registry_t *const> registries) {
   usize released = 0;
   for (auto it = m_assets.begin(); it != m_assets.end();) {
     bool used = false;
-    registry.view<const SpineComponent>().each(
-        [&](const scene::Entity, const SpineComponent &component) {
-          used = used || component.asset.same_version(it->second.asset);
-        });
+    for (scene::registry_t *const registry : registries)
+      registry->view<const SpineComponent>().each(
+          [&](const scene::Entity, const SpineComponent &component) {
+            used = used || component.asset.same_version(it->second.asset);
+          });
     if (used) {
       ++it;
       continue;
