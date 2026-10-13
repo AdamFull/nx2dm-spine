@@ -114,6 +114,16 @@ public:
           (void)m_system.emit(ctx.scene().registry(), *meshes, view);
         }));
     ctx.schedule().add(sys::Stage::Present, EMIT_SYSTEM);
+    // A layer bound to a scene draws its skeletons through the layer's camera.
+    ctx.add_layer_extract(LayerExtractFn(
+        [this, &ctx](scene::Scene &scene, r2d::FramePacket &layer) {
+          const SpineView view{.camera = layer.active_camera,
+                               .depth_min = ctx.renderer().depth_min(),
+                               .depth_max = ctx.renderer().depth_max(),
+                               .materials = ctx.renderer().materials()};
+          (void)m_system.emit(scene.registry(),
+                              layer.channel<r2d::MeshChannel>(), view);
+        }));
     ctx.schedule()
         .declare<const SpineComponent, SpineInstance,
                  const scene::WorldTransform2D>(EMIT_SYSTEM);
