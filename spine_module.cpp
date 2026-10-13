@@ -77,6 +77,10 @@ public:
     expose_spine_services(host, ctx);
   }
 
+  void on_scene_created(ModuleContext &, scene::Scene &scene) override {
+    SpineSystem::register_components(scene.registry());
+  }
+
   void on_hot_reload(ModuleContext &ctx) override {
     (void)m_system.reload_changed(ctx.scene().registry());
   }

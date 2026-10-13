@@ -38,6 +38,24 @@ TEST_CASE("spine scripting: every service is exposed as script-services.json "
     FAIL(error.c_str());
 }
 
+TEST_CASE("spine: the module registers its components in a scene made "
+          "after it") {
+  std::unique_ptr<nxe::Module> found;
+  for (const nxe::ModuleFactory factory : nxe::enabled_module_factories()) {
+    std::unique_ptr<nxe::Module> module = factory();
+    if (module != nullptr && module->name() == "spine")
+      found = std::move(module);
+  }
+  REQUIRE(found != nullptr);
+
+  nxe::Engine engine{nxe::Game{}};
+  nxe::ModuleContext ctx{engine};
+  nxe::scene::Scene made;
+  CHECK(made.registry().component_metadata_named("SpineComponent") == nullptr);
+  found->on_scene_created(ctx, made);
+  CHECK(made.registry().component_metadata_named("SpineComponent") != nullptr);
+}
+
 TEST_CASE("spine scripting: the module hands them over on its own") {
   std::unique_ptr<nxe::Module> found;
   for (const nxe::ModuleFactory factory : nxe::enabled_module_factories()) {
