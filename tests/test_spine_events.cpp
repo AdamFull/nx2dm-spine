@@ -5,9 +5,11 @@
 
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/vfs/vfs.h"
+#include "scene/asset/assets.h"
 #include "spine/spine_assets.h"
 #include "spine/spine_system.h"
 
+#include <spine/AnimationState.h>
 #include <spine/ClippingAttachment.h>
 #include <spine/Skeleton.h>
 #include <spine/Slot.h>
@@ -125,6 +127,33 @@ TEST_CASE("spine: a track reports starting, completing and ending") {
   instance.stop();
   system.update(registry, 0.f);
   CHECK(count_of(system, spine2d::SpineEventKind::Ended) == 1u);
+}
+
+TEST_CASE("spine: posing another scene leaves the game's events alone") {
+  const Loaded loaded;
+  NX_REQUIRE_FIXTURE();
+  REQUIRE(loaded.ok());
+
+  scene::registry_t game = bare_registry();
+  scene::registry_t other = bare_registry();
+  spine2d::SpineSystem system;
+  const scene::Entity walker = place(game, system, loaded.asset);
+  const scene::Entity shown = place(other, system, loaded.asset);
+  REQUIRE(game.get<spine2d::SpineInstance>(walker).play("walk"));
+  spine2d::SpineInstance &preview = other.get<spine2d::SpineInstance>(shown);
+  REQUIRE(preview.play("walk"));
+
+  system.update(game, 0.9f);
+  const usize footsteps = count_of(system, spine2d::SpineEventKind::Custom);
+  REQUIRE(footsteps > 0u);
+
+  const scene::AssetRegistry assets;
+  // Too short a step for a footstep of its own.
+  CHECK(system.pose(other, assets, 0.2f) == 1u);
+  CHECK(count_of(system, spine2d::SpineEventKind::Custom) == footsteps);
+  // Posed all the same, and its own events dropped rather than kept.
+  CHECK(preview.animation()->getTrack(0)->getTrackTime() > 0.f);
+  CHECK(preview.events().empty());
 }
 
 TEST_CASE("spine: events are drained, not accumulated") {

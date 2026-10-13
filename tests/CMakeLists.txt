@@ -1,7 +1,8 @@
 
 add_executable(nx_spine_tests test_spine_assets.cpp test_spine_asset_bundle.cpp
         test_spine_draw.cpp
-        test_spine_events.cpp test_spine_render.cpp test_spine_scripting.cpp)
+        test_spine_events.cpp test_spine_module.cpp test_spine_render.cpp
+        test_spine_scripting.cpp)
 
 nx_module_registry(nx_spine_tests)
 
@@ -37,6 +38,7 @@ endif ()
 target_compile_definitions(nx_spine_tests PRIVATE
         NX_SPINE_FIXTURE_DIR="${NX_SPINE_FIXTURE_DIR}"
         NX_TEST_SHADER_DIR="${NX_TEST_SHADERS}"
+        NX_TEST_RUNTIME_DIR="${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
         NX_REQUIRE_MODULE_FIXTURES=$<BOOL:${NX_REQUIRE_MODULE_FIXTURES}>)
 if (TARGET nx_rendering_shaders)
     add_dependencies(nx_spine_tests nx_rendering_shaders)

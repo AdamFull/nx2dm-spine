@@ -67,6 +67,10 @@ public:
   usize update(scene::registry_t &registry, const scene::AssetRegistry &assets,
                f32 dt);
   usize update(scene::registry_t &registry, f32 dt);
+  /// Poses @p registry's skeletons as update() does, for a scene other than
+  /// the game's: their events are dropped, and events() stays update()'s.
+  usize pose(scene::registry_t &registry, const scene::AssetRegistry &assets,
+             f32 dt);
 
   usize emit(scene::registry_t &registry, r2d::MeshChannel &out,
              const SpineView &view);
@@ -114,6 +118,9 @@ private:
 
   void emit_range(EmitChunk &chunk, usize begin, usize end,
                   const SpineView &view) const;
+  /// Attaches, rebinds and poses, leaving the posed instances in m_posed.
+  usize pose_all(scene::registry_t &registry,
+                 const scene::AssetRegistry &assets, f32 dt);
 
   /// Renders skeletons for picking, apart from the emit chunks' renderers.
   ::spine::SkeletonRenderer *m_pick_renderer = nullptr;

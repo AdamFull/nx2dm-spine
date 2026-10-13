@@ -95,6 +95,11 @@ public:
           release_unused(ctx);
         }));
     ctx.schedule().add(sys::Stage::Update, UPDATE_SYSTEM);
+    // Other scenes are posed alone; their events are not the game's.
+    ctx.add_scene_update(
+        SceneUpdateFn([this](scene::Scene &scene, const f32 dt) {
+          (void)m_system.pose(scene.registry(), scene.assets(), dt);
+        }));
 
     ctx.schedule().define(
         EMIT_SYSTEM, sys::SystemFn([this, &ctx](const sys::Context &) {

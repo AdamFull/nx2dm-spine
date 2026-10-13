@@ -274,7 +274,24 @@ void SpineSystem::clear_assets() {
 usize SpineSystem::update(scene::registry_t &registry,
                           const scene::AssetRegistry &assets, const f32 dt) {
   NX_PROFILE_ZONE("spine::update");
+  const usize posed = pose_all(registry, assets, dt);
+  m_events.clear();
+  for (SpineInstance *const instance : m_posed)
+    instance->take_events(m_events);
+  return posed;
+}
 
+usize SpineSystem::pose(scene::registry_t &registry,
+                        const scene::AssetRegistry &assets, const f32 dt) {
+  NX_PROFILE_ZONE("spine::pose");
+  const usize posed = pose_all(registry, assets, dt);
+  for (SpineInstance *const instance : m_posed)
+    instance->clear_events();
+  return posed;
+}
+
+usize SpineSystem::pose_all(scene::registry_t &registry,
+                            const scene::AssetRegistry &assets, const f32 dt) {
   m_pending.clear();
   registry.view<const SpineComponent>().each(
       [&](const scene::Entity e, const SpineComponent &component) {
@@ -357,11 +374,6 @@ usize SpineSystem::update(scene::registry_t &registry,
   else
     for (usize i = 0; i < m_posed.size(); ++i)
       pose(i);
-
-  m_events.clear();
-  for (SpineInstance *const instance : m_posed)
-    instance->take_events(m_events);
-
   return m_posed.size();
 }
 
