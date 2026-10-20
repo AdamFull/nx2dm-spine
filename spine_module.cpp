@@ -15,6 +15,9 @@
 #endif
 
 namespace nxe::spine2d {
+
+namespace gfx = nx::gfx;
+
 namespace {
 
 constexpr nx::string_view UPDATE_SYSTEM = "spine.update";
@@ -39,10 +42,10 @@ public:
     m_system.set_texture_resolver(
         TextureResolver([this, &ctx, sampler](const nx::string_view path,
                                               const bool premultiplied) {
-          const rhi::TextureHandle texture = m_textures.resolve(ctx, path);
+          const gfx::texture_handle texture = m_textures.resolve(ctx, path);
           return texture.valid()
                      ? NxTexture2D<float4>::from_indices(
-                           ctx.device().texture_index(texture), sampler,
+                           gfx::texture_index(ctx.device(), texture), sampler,
                            (premultiplied ? NX_TEXTURE_PREMULTIPLIED : 0u))
                      : NxTexture2D<float4>::none();
         }));
