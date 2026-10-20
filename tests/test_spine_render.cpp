@@ -50,12 +50,9 @@ struct TestDevice {
   auto refl = nx::fs::file_read_text(nx::fs::path_view(base + ".refl.json"));
   if (!code.has_value() || !refl.has_value())
     return {};
-  return device.create_shader({
-      .name = "mesh",
-      .code = code->data(),
-      .code_size = code->size(),
-      .reflection_json = refl->view(),
-  });
+  return nxe::test::create_shader(
+      device, {.name = "mesh", .code = code->data(), .code_size = code->size()},
+      refl->view());
 }
 
 [[nodiscard]] usize lit(const u8 *const pixels) noexcept {
