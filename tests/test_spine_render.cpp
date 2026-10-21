@@ -6,8 +6,9 @@
 #include "core/foundation/platform/filesystem.h"
 #include "core/foundation/strings/format.h"
 #include "core/foundation/vfs/vfs.h"
+#include "nx/gfx/gfx.h"
+#include "rendering/owned_device.h"
 #include "rendering/pipeline_test_utils.h"
-#include "rendering/rhi/rhi.h"
 #include "spine/spine_assets.h"
 #include "spine/spine_system.h"
 
@@ -16,6 +17,8 @@
 #include <cstdlib>
 #include <cstring>
 
+namespace gfx = nx::gfx;
+
 namespace {
 
 using namespace nxm::spine_test;
@@ -23,16 +26,14 @@ using namespace nxm::spine_test;
 namespace spine2d = nxe::spine2d;
 namespace scene = nxe::scene;
 namespace r2d = nxe::r2d;
-namespace rhi = nxe::rhi;
-
 constexpr u32 TARGET = 256;
 
 struct TestDevice {
-  rhi::Device device;
+  nxe::test::OwnedDevice device;
   bool ready = false;
 
   TestDevice() {
-    rhi::DeviceDesc desc{};
+    gfx::device_desc desc{};
     desc.application_name = "nx spine tests";
     ready = device.init(desc);
   }
@@ -44,7 +45,7 @@ struct TestDevice {
   TestDevice &operator=(const TestDevice &) = delete;
 };
 
-[[nodiscard]] rhi::ShaderHandle load_mesh_shader(rhi::Device &device) {
+[[nodiscard]] gfx::shader_handle load_mesh_shader(gfx::device &device) {
   const nx::string base = nx::string(NX_TEST_SHADER_DIR) + "/mesh";
   auto code = nx::fs::file_read(nx::fs::path_view(base + ".spv"));
   auto refl = nx::fs::file_read_text(nx::fs::path_view(base + ".refl.json"));
@@ -89,9 +90,9 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
   TestDevice fixture;
   if (!fixture.ready)
     SKIP("no usable RHI device");
-  rhi::Device &device = fixture.device;
+  gfx::device &device = fixture.device;
 
-  const rhi::ShaderHandle shader = load_mesh_shader(device);
+  const gfx::shader_handle shader = load_mesh_shader(device);
   if (!shader.valid())
     SKIP("shaders are not built in this configuration");
 
@@ -119,23 +120,27 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
   node.world[2][1] = 0.05f;
   REQUIRE(system.attach(registry, e, asset).play("walk"));
 
-  const rhi::TextureHandle target = device.create_texture({
-      .name = "spine target",
-      .format = rhi::Format::RGBA8_UNORM,
-      .width = TARGET,
-      .height = TARGET,
-      .usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc,
-  });
+  const gfx::texture_handle target = gfx::create_texture(
+      device, {
+                  .name = "spine target",
+                  .format = gfx::format::RGBA8_UNORM,
+                  .width = TARGET,
+                  .height = TARGET,
+                  .usage = gfx::texture_usage::RenderTarget |
+                           gfx::texture_usage::CopySrc,
+              });
   REQUIRE(target.valid());
 
-  const rhi::PipelineHandle pipeline = nxe::test::compile_pipeline(device, {
-      .name = "mesh",
-      .vertex = {.shader = shader, .entry_point = "vs_main"},
-      .fragment = {.shader = shader, .entry_point = "fs_main"},
-      .color_formats = {rhi::Format::RGBA8_UNORM},
-      .color_count = 1,
-      .blend = {{.enabled = true, .mode = rhi::BlendMode::Premultiplied}},
-  });
+  const gfx::pipeline_handle pipeline = nxe::test::compile_pipeline(
+      device,
+      {
+          .name = "mesh",
+          .vertex = {.shader = shader, .entry_point = "vs_main"},
+          .fragment = {.shader = shader, .entry_point = "fs_main"},
+          .color_formats = {gfx::format::RGBA8_UNORM},
+          .color_count = 1,
+          .blend = {{.enabled = true, .mode = gfx::blend_mode::Premultiplied}},
+      });
   REQUIRE(pipeline.valid());
 
   GpuCamera2D camera = {};
@@ -148,19 +153,21 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
 
   const auto upload = [&](const nx::string_view name, const void *const data,
                           const u64 bytes) {
-    const rhi::BufferHandle b = device.create_buffer({
-        .name = name,
-        .size = bytes,
-        .usage = rhi::BufferUsage::Storage | rhi::BufferUsage::DeviceAddress |
-                 rhi::BufferUsage::Indirect,
-        .memory = rhi::MemoryUsage::Upload,
-        .persistently_mapped = true,
-    });
+    const gfx::buffer_handle b = gfx::create_buffer(
+        device, {
+                    .name = name,
+                    .size = bytes,
+                    .usage = gfx::buffer_usage::Storage |
+                             gfx::buffer_usage::DeviceAddress |
+                             gfx::buffer_usage::Indirect,
+                    .memory = gfx::memory_usage::Upload,
+                    .persistently_mapped = true,
+                });
     REQUIRE(b.valid());
-    std::memcpy(device.buffer_mapped(b), data, bytes);
+    std::memcpy(gfx::buffer_mapped(device, b), data, bytes);
     return b;
   };
-  const rhi::BufferHandle cameras =
+  const gfx::buffer_handle cameras =
       upload("spine cameras", &camera, sizeof(camera));
 
   nx::vector<u8> frames[2];
@@ -170,67 +177,69 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
     REQUIRE(system.emit(registry, channel, {}) > 0u);
     REQUIRE(!channel.vertices.empty());
 
-    const rhi::BufferHandle vertices = upload(
+    const gfx::buffer_handle vertices = upload(
         "spine vertices", channel.vertices.data(),
         nx::cast<u64>(channel.vertices.size()) * sizeof(r2d::MeshVertex));
-    const rhi::BufferHandle indices =
+    const gfx::buffer_handle indices =
         upload("spine indices", channel.indices.data(),
                nx::cast<u64>(channel.indices.size()) * sizeof(u32));
 
     r2d::MeshStream stream;
     stream.build({channel.draws.data(), channel.draws.size()});
-    const rhi::BufferHandle records =
+    const gfx::buffer_handle records =
         upload("spine draws", stream.records.data(),
                nx::cast<u64>(stream.records.size()) * sizeof(GpuMeshDraw2D));
-    const rhi::BufferHandle commands =
+    const gfx::buffer_handle commands =
         upload("spine draw commands", stream.commands.data(),
                nx::cast<u64>(stream.commands.size()) *
-                   sizeof(rhi::DrawIndirectCommand));
+                   sizeof(gfx::draw_indirect_command));
 
     GpuMesh2DPush push;
-    push.cameras = {device.buffer_address(cameras)};
-    push.vertices = {device.buffer_address(vertices)};
-    push.indices = {device.buffer_address(indices)};
-    push.draws = {device.buffer_address(records)};
+    push.cameras = {gfx::buffer_address(device, cameras)};
+    push.vertices = {gfx::buffer_address(device, vertices)};
+    push.indices = {gfx::buffer_address(device, indices)};
+    push.draws = {gfx::buffer_address(device, records)};
 
-    rhi::CommandContext cmd;
-    REQUIRE(device.begin_headless_frame(cmd));
-    cmd.barrier(rhi::TextureBarrier{.texture = target,
-                                    .from = rhi::ResourceState::Undefined,
-                                    .to = rhi::ResourceState::ColorAttachment});
-    rhi::RenderPassDesc render = {};
+    gfx::command_list *cmd = nullptr;
+    REQUIRE(((cmd = gfx::begin_headless_frame(device)) != nullptr));
+    gfx::barrier(
+        *cmd, gfx::texture_barrier{.texture = target,
+                                   .from = gfx::resource_state::Undefined,
+                                   .to = gfx::resource_state::ColorAttachment});
+    gfx::render_pass_desc render = {};
     render.name = "spine";
     render.color[0].texture = target;
-    render.color[0].load = rhi::LoadOp::Clear;
-    render.color[0].store = rhi::StoreOp::Store;
-    render.color[0].clear = rhi::clear_color(0.f, 0.f, 0.f, 1.f);
+    render.color[0].load = gfx::load_op::Clear;
+    render.color[0].store = gfx::store_op::Store;
+    render.color[0].clear = gfx::clear_color(0.f, 0.f, 0.f, 1.f);
     render.color_count = 1;
-    cmd.begin_render_pass(render);
-    cmd.set_viewport(
-        {.width = nx::cast<f32>(TARGET), .height = nx::cast<f32>(TARGET)});
-    cmd.set_scissor({{0, 0}, {TARGET, TARGET}});
-    cmd.bind_pipeline(pipeline);
-    cmd.push_constants(&push, sizeof(push));
-    cmd.draw_indirect(commands, 0, nx::cast<u32>(stream.commands.size()),
-                      sizeof(rhi::DrawIndirectCommand));
-    cmd.end_render_pass();
-    cmd.barrier(rhi::TextureBarrier{.texture = target,
-                                    .from = rhi::ResourceState::ColorAttachment,
-                                    .to = rhi::ResourceState::CopySrc});
-    REQUIRE(device.end_headless_frame());
-    device.wait_idle();
+    gfx::begin_render_pass(*cmd, render);
+    gfx::set_viewport(*cmd, {.width = nx::cast<f32>(TARGET),
+                             .height = nx::cast<f32>(TARGET)});
+    gfx::set_scissor(*cmd, {{0, 0}, {TARGET, TARGET}});
+    gfx::bind_pipeline(*cmd, pipeline);
+    gfx::push_constants(*cmd, &push, sizeof(push));
+    gfx::draw_indirect(*cmd, commands, 0, nx::cast<u32>(stream.commands.size()),
+                       sizeof(gfx::draw_indirect_command));
+    gfx::end_render_pass(*cmd);
+    gfx::barrier(
+        *cmd, gfx::texture_barrier{.texture = target,
+                                   .from = gfx::resource_state::ColorAttachment,
+                                   .to = gfx::resource_state::CopySrc});
+    REQUIRE(gfx::end_headless_frame(device));
+    gfx::wait_idle(device);
 
-    const rhi::ReadbackResult pixels = device.uploader().read_texture(target);
+    const gfx::readback_result pixels = gfx::read_texture(device, target);
     REQUIRE(pixels.data != nullptr);
-    device.uploader().wait(pixels.ticket);
+    gfx::wait_upload(device, pixels.ticket);
     frames[pass].assign(pixels.data,
                         pixels.data + nx::cast<usize>(TARGET) * TARGET * 4);
     dump(frames[pass].data(), pass);
 
-    device.destroy_buffer(commands);
-    device.destroy_buffer(records);
-    device.destroy_buffer(indices);
-    device.destroy_buffer(vertices);
+    gfx::destroy_buffer(device, commands);
+    gfx::destroy_buffer(device, records);
+    gfx::destroy_buffer(device, indices);
+    gfx::destroy_buffer(device, vertices);
   }
 
   const usize covered = lit(frames[0].data());
@@ -239,10 +248,10 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
 
   CHECK(differing(frames[0].data(), frames[1].data()) > covered / 10);
 
-  device.destroy_buffer(cameras);
-  device.destroy_pipeline(pipeline);
-  device.destroy_texture(target);
-  device.destroy_shader(shader);
+  gfx::destroy_buffer(device, cameras);
+  gfx::destroy_pipeline(device, pipeline);
+  gfx::destroy_texture(device, target);
+  gfx::destroy_shader(device, shader);
   registry.clear();
   asset = spine2d::SkeletonAsset();
   nx::vfs::shutdown();

@@ -16,6 +16,8 @@
 #include <chrono>
 #include <optional>
 
+namespace gfx = nx::gfx;
+
 namespace {
 
 using namespace nxe;
@@ -28,7 +30,7 @@ void quiet_configure(EngineConfig &config) {
   config.audio = false;
   // Read back, so a test can see what a window drew.
   config.offscreen_render = true;
-  config.swapchain_format = rhi::Format::RGBA8_UNORM;
+  config.swapchain_format = gfx::format::RGBA8_UNORM;
 }
 
 struct Harness {
