@@ -3,7 +3,7 @@
 #include "core/foundation/core/callable.h"
 #include "core/foundation/core/foundation.h"
 #include "core/foundation/strings/utf8_string.h"
-#include "rendering/rhi/shaders/nx_interop.h"
+#include "rendering/interop/nx_interop.h"
 
 #include <span>
 

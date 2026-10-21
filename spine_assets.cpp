@@ -7,7 +7,7 @@
 #include "core/foundation/serialization/asset_policy.h"
 #include "core/foundation/strings/format.h"
 #include "core/foundation/vfs/vfs.h"
-#include "rendering/rhi/shaders/nx_interop.h"
+#include "rendering/interop/nx_interop.h"
 #include "spine/spine_platform.h"
 
 #include <spine/AnimationStateData.h>
