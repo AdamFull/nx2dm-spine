@@ -7,7 +7,7 @@ add_executable(nx_spine_tests test_spine_assets.cpp test_spine_asset_bundle.cpp
 nx_module_registry(nx_spine_tests)
 
 target_link_libraries(nx_spine_tests
-        PRIVATE nx::test nx::foundation nx::spine nx::rhi nx::stb
+        PRIVATE nx::test nx::foundation nx::spine nx::gfx nx::stb
         nx::engine nx::compile_options)
 # This module-heavy image exceeds an incremental-linker edge on MSVC: link.exe
 # can leave its import table zeroed, so the process crashes before main().
