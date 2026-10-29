@@ -1,10 +1,13 @@
 #pragma once
 
+#include "core/foundation/containers/blob.h"
 #include "core/foundation/core/callable.h"
 #include "core/foundation/core/foundation.h"
 #include "core/foundation/strings/utf8_string.h"
+#include "core/foundation/vfs/vfs.h"
 #include "rendering/interop/nx_interop.h"
 
+#include <optional>
 #include <span>
 
 namespace spine {
@@ -21,6 +24,8 @@ using TextureResolver =
 namespace detail {
 class SkeletonAssetData;
 }
+
+struct SpineSource;
 
 /// A cheap, copyable handle to one stable loaded skeleton version. Runtime
 /// poses keep their own handle, so replacing or destroying the caller's handle
@@ -59,6 +64,8 @@ private:
                             SkeletonAsset &, nx::string &);
   friend bool load_skeleton(nx::string_view, TextureResolver, SkeletonAsset &,
                             nx::string &);
+  friend bool build_gathered_skeleton(const SpineSource &, TextureResolver,
+                                      SkeletonAsset &, nx::string &);
 
   nx::shared_ptr<const detail::SkeletonAssetData> m_version;
 };
@@ -81,8 +88,49 @@ void texture_paths(const SkeletonAsset &asset,
 /// Loads one authored .nxspine descriptor in development and its atomic
 /// .nxspine.nxb bundle in Shipping. Relative atlas page paths remain relative
 /// to the descriptor's atlas, so existing texture resolvers need no changes.
+/// It is gather_skeleton through the VFS, then build_gathered_skeleton.
 [[nodiscard]] bool load_skeleton(nx::string_view asset_path,
                                  TextureResolver resolve, SkeletonAsset &out,
                                  nx::string &error);
+
+/// Where gather_skeleton reads from: the VFS itself, or an async I/O context
+/// on the VFS service.
+class SpineReader {
+public:
+  virtual ~SpineReader() = default;
+  [[nodiscard]] virtual nx::vfs::FileInfo stat(nx::string_view path) = 0;
+  /// Null when it is missing or larger than @p max_bytes.
+  [[nodiscard]] virtual std::optional<nx::blob<u8>> read(nx::string_view path,
+                                                         u64 max_bytes) = 0;
+};
+
+class VfsSpineReader final : public SpineReader {
+public:
+  [[nodiscard]] nx::vfs::FileInfo stat(nx::string_view path) override;
+  [[nodiscard]] std::optional<nx::blob<u8>> read(nx::string_view path,
+                                                 u64 max_bytes) override;
+};
+
+/// Every byte one asset is built from, read before any of it is parsed.
+struct SpineSource {
+  /// The asset as asked for, for logs.
+  nx::string label;
+  nx::string skeleton_path;
+  nx::string atlas_path;
+  nx::blob<u8> skeleton;
+  nx::blob<u8> atlas;
+  nx::vector<nx::string> dependencies;
+};
+
+/// The reading half of load_skeleton: no parsing, so an I/O job can run it.
+[[nodiscard]] bool gather_skeleton(nx::string_view asset_path,
+                                   SpineReader &reader, SpineSource &out,
+                                   nx::string &error);
+/// The building half, for a worker: an empty @p resolve leaves the atlas pages
+/// unbound until refresh_textures binds them on the owner thread.
+[[nodiscard]] bool build_gathered_skeleton(const SpineSource &source,
+                                           TextureResolver resolve,
+                                           SkeletonAsset &out,
+                                           nx::string &error);
 
 } // namespace nxe::spine2d

@@ -38,6 +38,8 @@ public:
 
   bool on_register(ModuleContext &ctx) override {
     m_system.set_threads(&ctx.threads());
+    if (nx::vfs::AsyncIoService *const io = ctx.async_io())
+      m_system.bind_loads(*io, ctx.threads());
     const u32 sampler = ctx.samplers().index(scene::sampler_bilinear());
     m_system.set_texture_resolver(
         TextureResolver([this, &ctx, sampler](const nx::string_view path,
@@ -51,6 +53,7 @@ public:
         }));
     if (!ctx.service_registrar().provide(SERVICE, PROVIDED_SERVICES[0].version,
                                          m_system)) {
+      m_system.shutdown_loads();
       m_system.set_threads(nullptr);
       return false;
     }
@@ -140,6 +143,7 @@ public:
 
   void on_unregister(ModuleContext &ctx) override {
     m_system.set_threads(nullptr);
+    m_system.shutdown_loads();
     m_system.clear_assets();
     m_textures.release_all(ctx);
   }

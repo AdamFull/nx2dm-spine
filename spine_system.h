@@ -3,6 +3,7 @@
 #include "core/foundation/containers/string_map.h"
 #include "core/foundation/core/callable.h"
 #include "core/foundation/threading/thread_pool.h"
+#include "core/foundation/vfs/asset_pipeline.h"
 #include "rendering/render2d/mesh_channel.h"
 #include "spine/spine_component.h"
 
@@ -21,6 +22,21 @@ class AssetRegistry;
 }
 
 namespace nxe::spine2d {
+
+struct GatheredSkeleton {
+  SpineSource source;
+  nx::string error;
+  bool ok = false;
+};
+
+struct PreparedSkeleton {
+  SkeletonAsset asset;
+  nx::string error;
+  bool ok = false;
+};
+
+using SkeletonLoadPipeline =
+    nx::vfs::StagedAssetPipeline<GatheredSkeleton, PreparedSkeleton>;
 
 struct SpineView {
   u32 camera = 0;
@@ -43,13 +59,30 @@ public:
 
   SpineInstance &attach(scene::registry_t &registry, scene::Entity e,
                         const SkeletonAsset &asset);
-  /// Loads and attaches a cache-owned asset generation.
+  /// Points @p e at @p path's skeleton without waiting for it. One not yet
+  /// loaded is read on I/O and built on a worker, and @p e gets its
+  /// SpineInstance at the first update after it arrives; a path that fails
+  /// is logged and not asked for again until a hot reload.
+  SpineComponent &request(scene::registry_t &registry, scene::Entity e,
+                          nx::string_view path);
+  /// Loads and attaches a cache-owned asset generation. Deprecated: it waits
+  /// for the load request() makes; use request().
   SpineInstance *attach(scene::registry_t &registry, scene::Entity e,
                         nx::string_view path, nx::string *error = nullptr);
+
+  /// Loads read through @p io and build on @p workers from here on; until
+  /// then, and after shutdown_loads, they read and build in place.
+  void bind_loads(nx::vfs::AsyncIoService &io, nx::thread_pool &workers);
+  void shutdown_loads() noexcept;
+  /// Skeletons being read or built, not yet published.
+  [[nodiscard]] usize loads_in_flight() const noexcept {
+    return m_loading.size();
+  }
 
   void set_texture_resolver(TextureResolver resolver) {
     m_resolve = std::move(resolver);
   }
+  /// Deprecated: it waits for the load request() makes; use request().
   [[nodiscard]] SkeletonAsset load(nx::string_view path,
                                    nx::string *error = nullptr);
   /// Reloads the cached skeletons whose sources changed and points the
@@ -123,6 +156,20 @@ private:
     nx::vector<u32> indices;
   };
 
+  struct LoadingSkeleton {
+    nx::string path;
+    nx::vfs::AssetLoadHandle handle;
+  };
+
+  /// Starts loading @p path unless it is cached, loading or failed.
+  void want(nx::string_view path);
+  /// The cached asset of @p path, loaded in place first if need be.
+  [[nodiscard]] SkeletonAsset load_cached(nx::string_view path,
+                                          nx::string *error);
+  /// Publishes finished loads into the cache, binding their textures.
+  void take_loads();
+  void cache(nx::string_view path, const SkeletonAsset &asset);
+
   void emit_range(EmitChunk &chunk, usize begin, usize end,
                   const SpineView &view) const;
   /// Attaches, rebinds and poses, leaving the posed instances in m_posed.
@@ -134,6 +181,12 @@ private:
   TextureResolver m_resolve;
   nx::string_map<CachedAsset> m_assets;
   nx::thread_pool *m_threads = nullptr;
+  SkeletonLoadPipeline m_loads;
+  bool m_async = false;
+  u64 m_load_generation = 0;
+  nx::vector<LoadingSkeleton> m_loading;
+  /// Why each path that failed did, until a hot reload clears it.
+  nx::string_map<nx::string> m_failed;
 
   nx::vector<scene::Entity> m_pending;
   nx::vector<SpineInstance *> m_posed;

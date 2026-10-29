@@ -2,6 +2,8 @@
 
 #include "core/foundation/diagnostics/log.h"
 #include "core/foundation/diagnostics/profiler.h"
+#include "core/foundation/strings/format.h"
+#include "core/foundation/vfs/async_io.h"
 #include "core/foundation/vfs/vfs.h"
 #include "rendering/render2d/material_system.h"
 #include "rendering/render2d/scene_renderer.h"
@@ -61,9 +63,39 @@ source_stamp(const std::span<const nx::string> dependencies) noexcept {
                        : r2d::MeshBlend::Normal;
 }
 
+class ContextSpineReader final : public SpineReader {
+public:
+  explicit ContextSpineReader(nx::vfs::AsyncIoContext &context) noexcept
+      : m_context(context) {}
+
+  [[nodiscard]] nx::vfs::FileInfo stat(const nx::string_view path) override {
+    return m_context.stat(path);
+  }
+  [[nodiscard]] std::optional<nx::blob<u8>> read(const nx::string_view path,
+                                                 const u64 max_bytes) override {
+    const nx::vfs::FileInfo info = m_context.stat(path);
+    if (!info.exists || info.is_directory || info.size > max_bytes)
+      return std::nullopt;
+    auto bytes = m_context.read(path, max_bytes);
+    if (!bytes)
+      return std::nullopt;
+    return std::move(bytes.value());
+  }
+
+private:
+  nx::vfs::AsyncIoContext &m_context;
+};
+
+[[nodiscard]] bool in_flight(const nx::vfs::AssetPipelineStage stage) noexcept {
+  using Stage = nx::vfs::AssetPipelineStage;
+  return stage == Stage::Queued || stage == Stage::Acquiring ||
+         stage == Stage::WaitingToPrepare || stage == Stage::Preparing;
+}
+
 } // namespace
 
 SpineSystem::~SpineSystem() {
+  shutdown_loads();
   for (const EmitChunk &chunk : m_emit_chunks)
     delete chunk.renderer;
   delete m_pick_renderer;
@@ -168,29 +200,172 @@ SpineInstance &SpineSystem::attach(scene::registry_t &registry,
 }
 
 SkeletonAsset SpineSystem::load(const nx::string_view path, nx::string *error) {
-  const auto cached = m_assets.find(path);
-  if (cached != m_assets.end())
-    return cached->second.asset;
+  return load_cached(path, error);
+}
 
-  SkeletonAsset asset;
-  nx::string why;
-  if (!load_skeleton(path, m_resolve, asset, why)) {
-    if (error != nullptr)
-      *error = std::move(why);
-    return {};
-  }
-  CachedAsset entry{asset, source_stamp(asset.dependencies())};
-  m_assets.emplace(nx::string(path), std::move(entry));
+SkeletonAsset SpineSystem::load_cached(const nx::string_view path,
+                                       nx::string *error) {
   if (error != nullptr)
     error->clear();
-  return asset;
+  if (const auto cached = m_assets.find(path); cached != m_assets.end())
+    return cached->second.asset;
+
+  if (!m_async) {
+    SkeletonAsset asset;
+    nx::string why;
+    if (!load_skeleton(path, m_resolve, asset, why)) {
+      if (error != nullptr)
+        *error = std::move(why);
+      return {};
+    }
+    cache(path, asset);
+    return asset;
+  }
+
+  // A barrier over the same pipeline request() uses, asking afresh even for a
+  // path that failed before.
+  (void)m_failed.erase(path);
+  want(path);
+  for (const LoadingSkeleton &loading : m_loading)
+    if (loading.path == path)
+      (void)m_loads.wait(loading.handle);
+  take_loads();
+  if (const auto cached = m_assets.find(path); cached != m_assets.end())
+    return cached->second.asset;
+  if (error != nullptr) {
+    const auto failed = m_failed.find(path);
+    *error = failed != m_failed.end() ? failed->second
+                                      : nx::format("'{}' did not load", path);
+  }
+  return {};
+}
+
+void SpineSystem::cache(const nx::string_view path,
+                        const SkeletonAsset &asset) {
+  CachedAsset entry{asset, source_stamp(asset.dependencies())};
+  m_assets.insert_or_assign(nx::string(path), std::move(entry));
+}
+
+void SpineSystem::bind_loads(nx::vfs::AsyncIoService &io,
+                             nx::thread_pool &workers) {
+  m_loads.bind(io, workers);
+  m_async = true;
+}
+
+void SpineSystem::shutdown_loads() noexcept {
+  for (const LoadingSkeleton &loading : m_loading)
+    (void)m_loads.release(loading.handle);
+  m_loading.clear();
+  m_loads.shutdown();
+  m_async = false;
+}
+
+void SpineSystem::want(const nx::string_view path) {
+  if (m_assets.find(path) != m_assets.end() ||
+      m_failed.find(path) != m_failed.end())
+    return;
+  for (const LoadingSkeleton &loading : m_loading)
+    if (loading.path == path)
+      return;
+  if (!m_async) {
+    nx::string why;
+    if (!load_cached(path, &why).valid()) {
+      nx::logw("spine: '{}' did not load: {}", path, why);
+      m_failed.insert_or_assign(nx::string(path), std::move(why));
+    }
+    return;
+  }
+
+  const nx::vfs::AssetLoadHandle handle = m_loads.request(
+      {.key = path, .generation = ++m_load_generation},
+      SkeletonLoadPipeline::AcquireFn(
+          [path = nx::string(path)](
+              nx::vfs::AsyncIoContext &context, const nx::string_view,
+              const nx::cancellation_token &cancellation) {
+            cancellation.throw_if_requested();
+            GatheredSkeleton gathered;
+            ContextSpineReader reader(context);
+            gathered.ok = gather_skeleton(path.view(), reader, gathered.source,
+                                          gathered.error);
+            return gathered;
+          }),
+      SkeletonLoadPipeline::PrepareFn(
+          [](GatheredSkeleton &&gathered, const nx::string_view,
+             const nx::cancellation_token &cancellation) {
+            cancellation.throw_if_requested();
+            PreparedSkeleton prepared;
+            if (!gathered.ok) {
+              prepared.error = std::move(gathered.error);
+              return prepared;
+            }
+            prepared.ok = build_gathered_skeleton(
+                gathered.source, {}, prepared.asset, prepared.error);
+            return prepared;
+          }));
+  if (handle.valid())
+    m_loading.push_back({nx::string(path), handle});
+}
+
+void SpineSystem::take_loads() {
+  if (m_loading.empty())
+    return;
+  m_loads.pump();
+  for (usize i = 0; i < m_loading.size();) {
+    LoadingSkeleton &loading = m_loading[i];
+    const nx::vfs::AssetPipelineStage stage = m_loads.stage(loading.handle);
+    if (in_flight(stage)) {
+      ++i;
+      continue;
+    }
+    nx::string why = "the load was cancelled";
+    bool published = false;
+    if (stage == nx::vfs::AssetPipelineStage::ReadyToPublish)
+      (void)m_loads.publish(
+          loading.handle,
+          [&](PreparedSkeleton &&prepared, const nx::string_view, const u64) {
+            if (!prepared.ok) {
+              why = std::move(prepared.error);
+              return false;
+            }
+            // Pages bind here, on the owner thread, as textures that arrive
+            // late do.
+            (void)spine2d::refresh_textures(prepared.asset, m_resolve);
+            cache(loading.path.view(), prepared.asset);
+            published = true;
+            return true;
+          });
+    if (!published) {
+      nx::logw("spine: '{}' did not load: {}", loading.path, why);
+      m_failed.insert_or_assign(loading.path, std::move(why));
+    }
+    (void)m_loads.release(loading.handle);
+    m_loading[i] = std::move(m_loading.back());
+    m_loading.pop_back();
+  }
+}
+
+SpineComponent &SpineSystem::request(scene::registry_t &registry,
+                                     const scene::Entity e,
+                                     const nx::string_view path) {
+  SpineComponent *component = registry.try_get<SpineComponent>(e);
+  if (component == nullptr)
+    component = &registry.emplace<SpineComponent>(e);
+  if (component->source == path && component->asset.valid())
+    return *component;
+  component->source = nx::string(path);
+  const auto cached = m_assets.find(path);
+  component->asset =
+      cached != m_assets.end() ? cached->second.asset : SkeletonAsset{};
+  if (!component->asset.valid())
+    want(path);
+  return *component;
 }
 
 SpineInstance *SpineSystem::attach(scene::registry_t &registry,
                                    const scene::Entity e,
                                    const nx::string_view path,
                                    nx::string *error) {
-  const SkeletonAsset asset = load(path, error);
+  const SkeletonAsset asset = load_cached(path, error);
   if (!asset.valid())
     return nullptr;
   SpineComponent *component = registry.try_get<SpineComponent>(e);
@@ -208,6 +383,7 @@ usize SpineSystem::reload_changed(scene::registry_t &registry) {
 
 usize SpineSystem::reload_changed(
     const std::span<scene::registry_t *const> registries) {
+  m_failed.clear();
   usize count = 0;
   for (auto &[path, cached] : m_assets) {
     const u64 changed = source_stamp(cached.asset.dependencies());
@@ -257,7 +433,9 @@ usize SpineSystem::release_unused(
     for (scene::registry_t *const registry : registries)
       registry->view<const SpineComponent>().each(
           [&](const scene::Entity, const SpineComponent &component) {
-            used = used || component.asset.same_version(it->second.asset);
+            // One still waiting for it takes it at its scene's next pose.
+            used = used || component.asset.same_version(it->second.asset) ||
+                   (!component.asset.valid() && component.source == it->first);
           });
     if (used) {
       ++it;
@@ -306,6 +484,18 @@ usize SpineSystem::pose(scene::registry_t &registry,
 
 usize SpineSystem::pose_all(scene::registry_t &registry,
                             const scene::AssetRegistry &assets, const f32 dt) {
+  take_loads();
+  registry.view<SpineComponent>().each(
+      [&](const scene::Entity, SpineComponent &component) {
+        if (component.asset.valid() || component.source.empty())
+          return;
+        if (const auto cached = m_assets.find(component.source);
+            cached != m_assets.end())
+          component.asset = cached->second.asset;
+        else
+          want(component.source.view());
+      });
+
   m_pending.clear();
   registry.view<const SpineComponent>().each(
       [&](const scene::Entity e, const SpineComponent &component) {

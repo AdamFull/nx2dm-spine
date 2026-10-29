@@ -180,6 +180,48 @@ TEST_CASE("spine: a skeleton a preview shows stays cached when the game's "
   nx::vfs::unmount(fixture);
 }
 
+TEST_CASE("spine: a requested skeleton loads off the frame and attaches when "
+          "it arrives") {
+  NX_REQUIRE_FIXTURE();
+  Harness h;
+  if (!h.ready)
+    SKIP("no usable RHI device");
+  spine2d::SpineSystem *const system = spine2d::system(*h.engine);
+  REQUIRE(system != nullptr);
+  const nx::vfs::MountId fixture = nx::vfs::mount(
+      "/", nx::vfs::make_host_device(nx::fs::path_view(fixture_dir())), 100);
+  REQUIRE(fixture.valid());
+
+  scene::Scene &game = h.engine->scene();
+  scene::registry_t &reg = game.registry();
+  const scene::Entity boy = game.create_node("boy");
+  CHECK_FALSE(system->request(reg, boy, BUNDLE).asset.valid());
+  CHECK(system->loads_in_flight() == 1u);
+  const scene::Entity missing = game.create_node("missing");
+  (void)system->request(reg, missing, "/spine/missing.nxspine");
+
+  const auto attached = [&](const scene::Entity e) {
+    const spine2d::SpineInstance *const instance =
+        reg.try_get<spine2d::SpineInstance>(e);
+    return instance != nullptr && instance->valid();
+  };
+  for (u32 i = 0; i < 2000 && !attached(boy); ++i) {
+    h.engine->on_tick(h.platform, 1.0 / 60.0);
+    nx::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  REQUIRE(attached(boy));
+  CHECK(system->loads_in_flight() == 0u);
+  CHECK_FALSE(attached(missing));
+
+  // Cached now, so another asks and has it at once.
+  const scene::Entity girl = game.create_node("girl");
+  CHECK(system->request(reg, girl, BUNDLE)
+            .asset.same_version(reg.get<spine2d::SpineComponent>(boy).asset));
+  h.engine->on_tick(h.platform, 1.0 / 60.0);
+  CHECK(attached(girl));
+  nx::vfs::unmount(fixture);
+}
+
 TEST_CASE("spine: a window layer bound to a scene draws its skeletons") {
   NX_REQUIRE_FIXTURE();
   Harness h;
