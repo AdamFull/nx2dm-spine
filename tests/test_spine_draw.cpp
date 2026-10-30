@@ -82,7 +82,7 @@ scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
 }
 
 [[nodiscard]] glm::vec2 centroid(const r2d::MeshChannel &channel) {
-  glm::vec2 sum(0.f);
+  float2 sum(0.f);
   for (const r2d::MeshVertex &v : channel.vertices)
     sum += v.position;
   return channel.vertices.empty()
@@ -665,11 +665,11 @@ TEST_CASE("spine: a skeleton stands up from its node, not down") {
   r2d::MeshChannel channel;
   REQUIRE(system.emit(registry, channel, {}) > 0u);
 
-  glm::vec2 lo(1e30f);
-  glm::vec2 hi(-1e30f);
+  float2 lo(1e30f);
+  float2 hi(-1e30f);
   for (const r2d::MeshVertex &v : channel.vertices) {
-    lo = glm::min(lo, v.position);
-    hi = glm::max(hi, v.position);
+    lo = nx::math::min(lo, v.position);
+    hi = nx::math::max(hi, v.position);
   }
   CHECK(hi.y > 500.f);
   CHECK(lo.y > -100.f);
@@ -784,10 +784,10 @@ TEST_CASE("spine: a skeleton is picked where it draws, and not beside it") {
   REQUIRE(draw.index_count >= 3u);
   glm::vec2 inside{0.f, 0.f};
   for (u32 i = 0; i < 3u; ++i)
-    inside += channel
-                  .vertices[draw.vertex_offset +
-                            channel.indices[draw.first_index + i]]
-                  .position;
+    inside += glm::vec2(channel
+                            .vertices[draw.vertex_offset +
+                                      channel.indices[draw.first_index + i]]
+                            .position);
   inside /= 3.f;
 
   nx::vector<scene::Entity> found;
