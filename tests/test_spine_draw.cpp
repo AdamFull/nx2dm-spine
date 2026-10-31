@@ -75,8 +75,8 @@ scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
                     const nx::string_view animation = "walk") {
   const scene::Entity e = registry.create();
   scene::WorldTransform2D &world = registry.emplace<scene::WorldTransform2D>(e);
-  world.world[2][0] = at.x;
-  world.world[2][1] = at.y;
+  world.world.columns[2][0] = at.x;
+  world.world.columns[2][1] = at.y;
   system.attach(registry, e, asset).play(animation);
   return e;
 }
@@ -311,7 +311,7 @@ TEST_CASE("spine: the node's transform is what places the skeleton") {
   r2d::MeshChannel at_origin;
   REQUIRE(system.emit(registry, at_origin, {}) > 0u);
 
-  registry.get<scene::WorldTransform2D>(e).world[2][0] = 100.f;
+  registry.get<scene::WorldTransform2D>(e).world.columns[2][0] = 100.f;
   r2d::MeshChannel moved;
   REQUIRE(system.emit(registry, moved, {}) > 0u);
   REQUIRE(moved.vertices.size() == at_origin.vertices.size());
@@ -322,9 +322,9 @@ TEST_CASE("spine: the node's transform is what places the skeleton") {
           nxtest::Approx(at_origin.vertices[i].position.y));
   }
 
-  registry.get<scene::WorldTransform2D>(e).world[2][0] = 0.f;
-  registry.get<scene::WorldTransform2D>(e).world[0][0] = 0.5f;
-  registry.get<scene::WorldTransform2D>(e).world[1][1] = 0.5f;
+  registry.get<scene::WorldTransform2D>(e).world.columns[2][0] = 0.f;
+  registry.get<scene::WorldTransform2D>(e).world.columns[0][0] = 0.5f;
+  registry.get<scene::WorldTransform2D>(e).world.columns[1][1] = 0.5f;
   r2d::MeshChannel scaled;
   REQUIRE(system.emit(registry, scaled, {}) > 0u);
   CHECK(centroid(scaled).y == nxtest::Approx(centroid(at_origin).y * 0.5f));

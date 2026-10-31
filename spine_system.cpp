@@ -1,4 +1,5 @@
 #include "spine/spine_system.h"
+#include "core/foundation/math/names.h"
 
 #include "core/foundation/diagnostics/log.h"
 #include "core/foundation/diagnostics/profiler.h"
@@ -29,13 +30,13 @@ source_stamp(const std::span<const nx::string> dependencies) noexcept {
 /// An additive slot in premultiplied content is drawn as a normal one with
 /// alpha zero: the premultiplied over operator then adds its colour and leaves
 /// what is behind it, so the skeleton stays on one pipeline.
-[[nodiscard]] u32 tint(const u32 argb, const glm::vec4 &color,
+[[nodiscard]] u32 tint(const u32 argb, const float4 &color,
                        const bool premultiplied, const bool additive) noexcept {
   constexpr f32 INV = 1.f / 255.f;
-  glm::vec4 rgba(nx::cast<f32>((argb >> 16) & 0xFFu) * INV * color.x,
-                 nx::cast<f32>((argb >> 8) & 0xFFu) * INV * color.y,
-                 nx::cast<f32>(argb & 0xFFu) * INV * color.z,
-                 nx::cast<f32>((argb >> 24) & 0xFFu) * INV * color.w);
+  float4 rgba(nx::cast<f32>((argb >> 16) & 0xFFu) * INV * color.x,
+              nx::cast<f32>((argb >> 8) & 0xFFu) * INV * color.y,
+              nx::cast<f32>(argb & 0xFFu) * INV * color.z,
+              nx::cast<f32>((argb >> 24) & 0xFFu) * INV * color.w);
   if (premultiplied) {
     rgba.x *= rgba.w;
     rgba.y *= rgba.w;
@@ -104,10 +105,9 @@ SpineSystem::~SpineSystem() {
 namespace {
 
 /// Whether @p p is in the triangle @p a, @p b, @p c, either way round.
-[[nodiscard]] bool in_triangle(const glm::vec2 p, const glm::vec2 a,
-                               const glm::vec2 b, const glm::vec2 c) {
-  const auto side = [](const glm::vec2 from, const glm::vec2 to,
-                       const glm::vec2 at) {
+[[nodiscard]] bool in_triangle(const float2 p, const float2 a, const float2 b,
+                               const float2 c) {
+  const auto side = [](const float2 from, const float2 to, const float2 at) {
     return (to.x - from.x) * (at.y - from.y) -
            (to.y - from.y) * (at.x - from.x);
   };
@@ -121,7 +121,7 @@ namespace {
 } // namespace
 
 void SpineSystem::pick(const scene::registry_t &registry,
-                       const glm::vec2 world_point, const PickFn found) {
+                       const float2 world_point, const PickFn found) {
   if (m_pick_renderer == nullptr)
     m_pick_renderer = new ::spine::SkeletonRenderer();
   registry
@@ -133,15 +133,16 @@ void SpineSystem::pick(const scene::registry_t &registry,
         if (!component.visible || !instance.valid())
           return;
         // The renderer's positions are in the skeleton's space.
-        const glm::vec2 local =
-            glm::vec2(glm::inverse(node.world) * glm::vec3(world_point, 1.f));
+        const float2 local = nx::math::mul(nx::math::inverse(node.world),
+                                           float3(world_point, 1.f))
+                                 .xy();
         for (const ::spine::RenderCommand *command =
                  m_pick_renderer->render(*instance.skeleton());
              command != nullptr; command = command->next) {
           const auto at = [&](const usize index) {
             const usize i = command->indices[index];
-            return glm::vec2(command->positions[i * 2],
-                             command->positions[i * 2 + 1]);
+            return float2(command->positions[i * 2],
+                          command->positions[i * 2 + 1]);
           };
           for (usize t = 0; t + 2 < nx::cast<usize>(command->numIndices);
                t += 3)
@@ -154,7 +155,7 @@ void SpineSystem::pick(const scene::registry_t &registry,
 }
 
 void SpineSystem::pick_within(const scene::registry_t &registry,
-                              const glm::vec2 lo, const glm::vec2 hi,
+                              const float2 lo, const float2 hi,
                               const PickFn found) {
   if (m_pick_renderer == nullptr)
     m_pick_renderer = new ::spine::SkeletonRenderer();
@@ -166,17 +167,19 @@ void SpineSystem::pick_within(const scene::registry_t &registry,
                 const scene::WorldTransform2D &node) {
         if (!component.visible || !instance.valid())
           return;
-        glm::vec2 min{std::numeric_limits<f32>::max()};
-        glm::vec2 max{std::numeric_limits<f32>::lowest()};
+        float2 min{std::numeric_limits<f32>::max()};
+        float2 max{std::numeric_limits<f32>::lowest()};
         for (const ::spine::RenderCommand *command =
                  m_pick_renderer->render(*instance.skeleton());
              command != nullptr; command = command->next)
           for (usize i = 0; i < nx::cast<usize>(command->numVertices); ++i) {
-            const glm::vec2 world = glm::vec2(
-                node.world * glm::vec3(command->positions[i * 2],
-                                       command->positions[i * 2 + 1], 1.f));
-            min = glm::min(min, world);
-            max = glm::max(max, world);
+            const float2 world =
+                nx::math::mul(node.world,
+                              float3(command->positions[i * 2],
+                                     command->positions[i * 2 + 1], 1.f))
+                    .xy();
+            min = nx::math::min(min, world);
+            max = nx::math::max(max, world);
           }
         if (min.x <= hi.x && max.x >= lo.x && min.y <= hi.y && max.y >= lo.y)
           found(e, component.layer);
@@ -606,10 +609,11 @@ void SpineSystem::emit_range(EmitChunk &chunk, const usize begin,
     }
     const u32 layer =
         nx::cast<u32>(nx::clamp(component.layer, -32768, 32767) + 32768);
-    const u32 key = nx_make_sort_key(
-        layer,
-        r2d::quantize_depth(node.world[2][1], view.depth_min, view.depth_max),
-        0u);
+    const u32 key =
+        nx_make_sort_key(layer,
+                         r2d::quantize_depth(node.world.columns[2][1],
+                                             view.depth_min, view.depth_max),
+                         0u);
 
     for (const ::spine::RenderCommand *command =
              chunk.renderer->render(*instance.skeleton());
@@ -625,10 +629,12 @@ void SpineSystem::emit_range(EmitChunk &chunk, const usize begin,
         const f32 x = command->positions[i * 2];
         const f32 y = command->positions[i * 2 + 1];
         r2d::MeshVertex vertex;
-        vertex.position = glm::vec2(
-            node.world[0][0] * x + node.world[1][0] * y + node.world[2][0],
-            node.world[0][1] * x + node.world[1][1] * y + node.world[2][1]);
-        vertex.uv = glm::vec2(command->uvs[i * 2], command->uvs[i * 2 + 1]);
+        vertex.position =
+            float2(node.world.columns[0][0] * x + node.world.columns[1][0] * y +
+                       node.world.columns[2][0],
+                   node.world.columns[0][1] * x + node.world.columns[1][1] * y +
+                       node.world.columns[2][1]);
+        vertex.uv = float2(command->uvs[i * 2], command->uvs[i * 2 + 1]);
         vertex.color =
             tint(command->colors[i], component.color, premultiplied, additive);
         chunk.vertices.push_back(vertex);

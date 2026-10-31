@@ -2,6 +2,7 @@
 
 #include "core/foundation/containers/string_map.h"
 #include "core/foundation/core/callable.h"
+#include "core/foundation/math/names.h"
 #include "core/foundation/threading/thread_pool.h"
 #include "core/foundation/vfs/asset_pipeline.h"
 #include "rendering/render2d/mesh_channel.h"
@@ -118,12 +119,12 @@ public:
   using PickFn = nx::function_ref<void(scene::Entity, i32 layer)>;
   /// Each visible skeleton of @p registry whose drawn triangles hold
   /// @p world_point, with its component's layer, for the editor's picking.
-  void pick(const scene::registry_t &registry, glm::vec2 world_point,
+  void pick(const scene::registry_t &registry, float2 world_point,
             PickFn found);
   /// Each visible skeleton whose drawn vertices' bounds overlap the world
   /// rectangle from @p lo to @p hi.
-  void pick_within(const scene::registry_t &registry, glm::vec2 lo,
-                   glm::vec2 hi, PickFn found);
+  void pick_within(const scene::registry_t &registry, float2 lo, float2 hi,
+                   PickFn found);
 
   [[nodiscard]] std::span<const SpineEvent> events() const noexcept {
     return {m_events.data(), m_events.size()};

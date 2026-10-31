@@ -114,10 +114,10 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
 
   const scene::Entity e = registry.create();
   scene::WorldTransform2D &node = registry.emplace<scene::WorldTransform2D>(e);
-  node.world[0][0] = 1.f / 900.f;
-  node.world[1][1] = 1.f / 900.f;
-  node.world[2][0] = 0.5f;
-  node.world[2][1] = 0.05f;
+  node.world.columns[0][0] = 1.f / 900.f;
+  node.world.columns[1][1] = 1.f / 900.f;
+  node.world.columns[2][0] = 0.5f;
+  node.world.columns[2][1] = 0.05f;
   REQUIRE(system.attach(registry, e, asset).play("walk"));
 
   const gfx::texture_handle target = gfx::create_texture(
