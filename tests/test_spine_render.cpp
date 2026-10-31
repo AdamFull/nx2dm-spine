@@ -1,4 +1,5 @@
 
+#include "core/foundation/math/names.h"
 #include "framework/nxtest.h"
 
 #include "fixture.h"
@@ -144,11 +145,11 @@ TEST_CASE("spine: a skeleton reaches the framebuffer, and walking changes it") {
   REQUIRE(pipeline.valid());
 
   GpuCamera2D camera = {};
-  glm::mat4 proj(1.f);
-  proj[0][0] = 2.f;
-  proj[1][1] = 2.f;
-  proj[3][0] = -1.f;
-  proj[3][1] = -1.f;
+  float4x4 proj = float4x4::identity();
+  proj.columns[0][0] = 2.f;
+  proj.columns[1][1] = 2.f;
+  proj.columns[3][0] = -1.f;
+  proj.columns[3][1] = -1.f;
   camera.view_proj = proj;
 
   const auto upload = [&](const nx::string_view name, const void *const data,

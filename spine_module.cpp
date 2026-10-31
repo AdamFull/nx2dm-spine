@@ -1,5 +1,6 @@
 
 #include "spine/spine_module.h"
+#include "core/foundation/math/names.h"
 
 #include "spine/spine_scripting.h"
 
@@ -61,7 +62,7 @@ public:
 #if NX_WITH_EDITOR
     ctx.add_picker(
         {.at = editor::Picker2D::At([this](const scene::Scene &scene,
-                                           const glm::vec2 point,
+                                           const float2 point,
                                            nx::vector<editor::PickHit> &out) {
            m_system.pick(scene.registry(), point,
                          [&](const scene::Entity e, const i32 layer) {
@@ -69,8 +70,8 @@ public:
                          });
          }),
          .within = editor::Picker2D::Within(
-             [this](const scene::Scene &scene, const glm::vec2 lo,
-                    const glm::vec2 hi, nx::vector<scene::Entity> &out) {
+             [this](const scene::Scene &scene, const float2 lo, const float2 hi,
+                    nx::vector<scene::Entity> &out) {
                m_system.pick_within(
                    scene.registry(), lo, hi,
                    [&](const scene::Entity e, i32) { out.push_back(e); });

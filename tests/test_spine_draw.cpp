@@ -1,4 +1,5 @@
 
+#include "core/foundation/math/names.h"
 #include "framework/nxtest.h"
 
 #include "fixture.h"
@@ -71,7 +72,7 @@ struct Loaded {
 }
 
 scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
-                    const spine2d::SkeletonAsset &asset, const glm::vec2 at,
+                    const spine2d::SkeletonAsset &asset, const float2 at,
                     const nx::string_view animation = "walk") {
   const scene::Entity e = registry.create();
   scene::WorldTransform2D &world = registry.emplace<scene::WorldTransform2D>(e);
@@ -81,7 +82,7 @@ scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
   return e;
 }
 
-[[nodiscard]] glm::vec2 centroid(const r2d::MeshChannel &channel) {
+[[nodiscard]] float2 centroid(const r2d::MeshChannel &channel) {
   float2 sum(0.f);
   for (const r2d::MeshVertex &v : channel.vertices)
     sum += v.position;
@@ -89,7 +90,6 @@ scene::Entity place(scene::registry_t &registry, spine2d::SpineSystem &system,
              ? sum
              : sum / nx::cast<f32>(channel.vertices.size());
 }
-
 }
 
 TEST_CASE("spine: skeletons emitted on the pool match one thread exactly") {
@@ -782,12 +782,12 @@ TEST_CASE("spine: a skeleton is picked where it draws, and not beside it") {
   // The middle of the first triangle it draws.
   const r2d::MeshDraw &draw = channel.draws.front();
   REQUIRE(draw.index_count >= 3u);
-  glm::vec2 inside{0.f, 0.f};
+  float2 inside{0.f, 0.f};
   for (u32 i = 0; i < 3u; ++i)
-    inside += glm::vec2(channel
-                            .vertices[draw.vertex_offset +
-                                      channel.indices[draw.first_index + i]]
-                            .position);
+    inside += float2(channel
+                         .vertices[draw.vertex_offset +
+                                   channel.indices[draw.first_index + i]]
+                         .position);
   inside /= 3.f;
 
   nx::vector<scene::Entity> found;
@@ -800,8 +800,8 @@ TEST_CASE("spine: a skeleton is picked where it draws, and not beside it") {
   found.clear();
   system.pick(registry, {-5000.f, -5000.f}, collect);
   CHECK(found.empty());
-  system.pick_within(registry, inside - glm::vec2(0.01f),
-                     inside + glm::vec2(0.01f), collect);
+  system.pick_within(registry, inside - float2(0.01f), inside + float2(0.01f),
+                     collect);
   REQUIRE(found.size() == 1u);
   CHECK(found.front() == e);
   found.clear();

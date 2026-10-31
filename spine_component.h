@@ -4,7 +4,7 @@
 #include "scene/components.h"
 #include "spine/spine_assets.h"
 
-#include <glm/glm.hpp>
+#include "core/foundation/math/names.h"
 
 #include <span>
 
@@ -40,7 +40,7 @@ struct SpineComponent {
   /// Non-empty for assets owned by SpineSystem's path cache. Direct handles
   /// remain supported, but have no file generation to follow.
   nx::string source;
-  glm::vec4 color{1.f, 1.f, 1.f, 1.f};
+  float4 color{1.f, 1.f, 1.f, 1.f};
   f32 time_scale = 1.f;
   i32 layer = 0;
   bool visible = true;
