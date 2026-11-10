@@ -710,6 +710,7 @@ usize SpineSystem::emit(scene::registry_t &registry, r2d::MeshChannel &out,
     m_emit_chunks.resize(chunks);
   const usize per_chunk = (count + chunks - 1) / chunks;
   const auto run = [&](const usize c) {
+    NX_PROFILE_ZONE("spine::emit_range");
     const usize begin = nx::min(c * per_chunk, count);
     emit_range(m_emit_chunks[c], begin, nx::min(begin + per_chunk, count),
                view);
