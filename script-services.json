@@ -27,6 +27,10 @@
     {
       "name": "spine_speed",
       "signature": "(number,number)->(boolean)"
+    },
+    {
+      "name": "spine_loading",
+      "signature": "(number)->(boolean)"
     }
   ]
 }

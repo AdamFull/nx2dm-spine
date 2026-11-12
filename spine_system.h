@@ -79,6 +79,10 @@ public:
   [[nodiscard]] usize loads_in_flight() const noexcept {
     return m_loading.size();
   }
+  /// Whether @p path failed to load and is not asked for again.
+  [[nodiscard]] bool failed(nx::string_view path) const {
+    return m_failed.find(path) != m_failed.end();
+  }
 
   void set_texture_resolver(TextureResolver resolver) {
     m_resolve = std::move(resolver);

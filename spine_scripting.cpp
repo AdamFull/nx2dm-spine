@@ -1,6 +1,7 @@
 #include "spine/spine_scripting.h"
 
 #include "spine/spine_component.h"
+#include "spine/spine_system.h"
 
 #include "app/engine.h"
 #include "script/script_host.h"
@@ -32,7 +33,17 @@ namespace {
 
 }
 
-void expose_spine_services(script::Host &host, ModuleContext &ctx) {
+void expose_spine_services(script::Host &host, ModuleContext &ctx,
+                           const SpineSystem &system) {
+  // False for a skeleton that failed to load too: a loading screen waiting
+  // on this would otherwise never come down.
+  host.expose_as("spine_loading", [&ctx, &system](const sys::Entity e) {
+    const SpineComponent *const component = component_of(ctx, e);
+    return component != nullptr && !component->source.empty() &&
+           instance_of(ctx, e) == nullptr &&
+           !system.failed(component->source.view());
+  });
+
   host.expose_as("spine_play", [&ctx](const sys::Entity e,
                                       const nx::string_view animation,
                                       const bool loop, const f32 track) {
@@ -98,5 +109,4 @@ void expose_spine_services(script::Host &host, ModuleContext &ctx) {
     return true;
   });
 }
-
 }

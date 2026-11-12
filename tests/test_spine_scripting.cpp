@@ -6,6 +6,7 @@
 #include "script/luau/luau_bindings.h"
 #include "script/script_host.h"
 #include "spine/spine_scripting.h"
+#include "spine/spine_system.h"
 
 namespace {
 
@@ -15,11 +16,12 @@ namespace script = nxe::script;
 struct Exposed {
   nxe::Engine engine{nxe::Game{}};
   nxe::ModuleContext ctx{engine};
+  SpineSystem system;
   script::Host host;
   nx::vector<script::Host::ServiceInfo> services;
 
   Exposed() {
-    expose_spine_services(host, ctx);
+    expose_spine_services(host, ctx, system);
     services = host.services();
   }
 };
@@ -70,8 +72,9 @@ TEST_CASE("spine scripting: the module hands them over on its own") {
   script::Host host;
   found->on_expose_scripts(host, ctx);
 
+  const SpineSystem system;
   script::Host direct;
-  expose_spine_services(direct, ctx);
+  expose_spine_services(direct, ctx, system);
   CHECK(host.exposed_count() == direct.exposed_count());
   CHECK(host.exposed_count() > 0u);
 }

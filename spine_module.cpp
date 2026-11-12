@@ -58,7 +58,7 @@ public:
       m_system.set_threads(nullptr);
       return false;
     }
-    SpineSystem::register_components(ctx.scene().registry());
+    on_scene_created(ctx, ctx.scene());
 #if NX_WITH_EDITOR
     ctx.add_picker(
         {.at = editor::Picker2D::At([this](const scene::Scene &scene,
@@ -81,11 +81,12 @@ public:
   }
 
   void on_expose_scripts(script::Host &host, ModuleContext &ctx) override {
-    expose_spine_services(host, ctx);
+    expose_spine_services(host, ctx, m_system);
   }
 
   void on_scene_created(ModuleContext &, scene::Scene &scene) override {
     SpineSystem::register_components(scene.registry());
+    scene.formats().add(scene::described<SpineComponent>("spine", "spines"));
   }
 
   void on_hot_reload(ModuleContext &ctx) override {

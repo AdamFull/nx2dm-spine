@@ -9,6 +9,8 @@ class Host;
 
 namespace nxe::spine2d {
 
-void expose_spine_services(script::Host &host, ModuleContext &ctx);
+class SpineSystem;
 
+void expose_spine_services(script::Host &host, ModuleContext &ctx,
+                           const SpineSystem &system);
 }
